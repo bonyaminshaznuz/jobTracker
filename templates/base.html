@@ -7,34 +7,112 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen overflow-x-hidden bg-slate-100 text-slate-800">
-    <div class="min-h-screen flex flex-col md:flex-row">
-        <aside class="w-full md:w-64 md:min-h-screen md:sticky md:top-0 bg-slate-900 text-white p-4 md:p-5">
-            <h1 class="text-xl font-bold mb-6">Job Tracker</h1>
-            {% if user.is_authenticated %}
-                <nav class="space-y-2 text-sm">
-                    <a href="{% url 'dashboard:home' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Dashboard</a>
-                    <a href="{% url 'jobs:list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Jobs</a>
-                    <a href="{% url 'jobs:create' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/new/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Add Job</a>
-                    <a href="{% url 'jobs:cv-list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path|slice:':9' == '/jobs/cvs' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">CV Manager</a>
-                    <a href="{% url 'jobs:category-list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path|slice:':16' == '/jobs/categories/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Manage Categories</a>
-                    <a href="{% url 'jobs:kanban' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/kanban/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Kanban Board</a>
-                    <form action="{% url 'accounts:logout' %}" method="post" class="pt-3">
-                        {% csrf_token %}
-                        <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Logout</button>
-                    </form>
-                </nav>
-            {% else %}
-                <div class="space-y-2 text-sm">
-                    <a href="{% url 'accounts:login' %}" class="block px-3 py-2 rounded-lg hover:bg-slate-700 transition">Login</a>
-                    <a href="{% url 'accounts:signup' %}" class="block px-3 py-2 rounded-lg hover:bg-slate-700 transition">Create account</a>
-                </div>
-            {% endif %}
-        </aside>
+    <div class="min-h-screen flex flex-col">
+        <!-- Full-width top navbar -->
+        <header class="w-full border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+            <div class="w-full flex items-center justify-between px-4 py-3">
+                <a href="{% url 'dashboard:home' %}" class="text-lg font-semibold tracking-tight text-slate-900">Job Tracker</a>
+                <button
+                    id="sidebarToggle"
+                    type="button"
+                    class="md:hidden inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    aria-controls="sidebar"
+                    aria-expanded="false"
+                    aria-label="Open sidebar"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+            </div>
+        </header>
 
-        <main class="min-w-0 flex-1 p-3 sm:p-4 md:p-8 lg:p-10">
-            {% include 'partials/messages.html' %}
-            {% block content %}{% endblock %}
-        </main>
+        <div class="flex flex-1">
+            <!-- Overlay appears only when mobile sidebar is open -->
+            <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden" aria-hidden="true"></div>
+
+            <!-- Mobile off-canvas + desktop static sidebar -->
+            <aside
+                id="sidebar"
+                class="fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-50 transform -translate-x-full transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:flex md:flex-col md:shadow-none md:border-r md:border-slate-200"
+            >
+                <div class="flex h-full flex-col">
+                    <div class="border-b border-slate-200 px-4 py-4 md:hidden">
+                        <span class="text-base font-semibold text-slate-900">Navigation</span>
+                    </div>
+                    {% if user.is_authenticated %}
+                        <nav class="flex flex-col gap-2 p-4 text-sm text-slate-700">
+                            <a href="{% url 'dashboard:home' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 {% if request.path == '/' %}bg-slate-100 font-semibold text-slate-900{% endif %}">Dashboard</a>
+                            <a href="{% url 'jobs:list' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 {% if request.path == '/jobs/' %}bg-slate-100 font-semibold text-slate-900{% endif %}">Jobs</a>
+                            <a href="{% url 'jobs:create' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 {% if request.path == '/jobs/new/' %}bg-slate-100 font-semibold text-slate-900{% endif %}">Add Job</a>
+                            <a href="{% url 'jobs:cv-list' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 {% if request.path|slice:':9' == '/jobs/cvs' %}bg-slate-100 font-semibold text-slate-900{% endif %}">CV Manager</a>
+                            <a href="{% url 'jobs:list' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100">Interviews</a>
+                            <a href="{% url 'jobs:category-list' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100 {% if request.path|slice:':16' == '/jobs/categories/' %}bg-slate-100 font-semibold text-slate-900{% endif %}">Categories</a>
+                        </nav>
+                        <div class="mt-auto p-4">
+                            <form action="{% url 'accounts:logout' %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-600">Logout</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <div class="flex flex-col gap-2 p-4 text-sm text-slate-700">
+                            <a href="{% url 'accounts:login' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100">Login</a>
+                            <a href="{% url 'accounts:signup' %}" class="rounded-lg px-3 py-2 transition hover:bg-gray-100">Create account</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </aside>
+
+            <main class="min-w-0 flex-1 p-4 md:p-6">
+                {% include 'partials/messages.html' %}
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
+
+    <script>
+        // Minimal off-canvas sidebar controller for mobile screens.
+        document.addEventListener("DOMContentLoaded", function () {
+            var sidebar = document.getElementById("sidebar");
+            var overlay = document.getElementById("sidebarOverlay");
+            var toggleButton = document.getElementById("sidebarToggle");
+
+            if (!sidebar || !overlay || !toggleButton) {
+                return;
+            }
+
+            function openSidebar() {
+                sidebar.classList.remove("-translate-x-full");
+                sidebar.classList.add("translate-x-0");
+                overlay.classList.remove("hidden");
+                toggleButton.setAttribute("aria-expanded", "true");
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove("translate-x-0");
+                sidebar.classList.add("-translate-x-full");
+                overlay.classList.add("hidden");
+                toggleButton.setAttribute("aria-expanded", "false");
+            }
+
+            toggleButton.addEventListener("click", function () {
+                if (sidebar.classList.contains("-translate-x-full")) {
+                    openSidebar();
+                } else {
+                    closeSidebar();
+                }
+            });
+
+            overlay.addEventListener("click", closeSidebar);
+
+            window.addEventListener("resize", function () {
+                if (window.innerWidth >= 768) {
+                    overlay.classList.add("hidden");
+                    toggleButton.setAttribute("aria-expanded", "false");
+                }
+            });
+        });
+    </script>
 </body>
 </html>
