@@ -60,7 +60,7 @@
                     <h3 class="mt-1 break-words text-lg font-semibold text-slate-900">{{ job.cv.name }}</h3>
                     <p class="text-sm text-slate-500">Version {{ job.cv.version }}</p>
                     <div class="mt-3 flex flex-wrap items-center gap-2">
-                        <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{{ job.cv.file.url }}" target="_blank" rel="noreferrer">Preview CV</a>
+                        <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{% url 'jobs:cv-preview' job.cv.pk %}" target="_blank" rel="noreferrer">Preview CV</a>
                         <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{{ job.cv.file.url }}" download>Download CV</a>
                     </div>
                 </div>
@@ -71,7 +71,7 @@
                     <p class="text-sm text-slate-500">Version Final</p>
                     {% if job.cv.cover_letter_file %}
                         <div class="mt-3 flex flex-wrap items-center gap-2">
-                            <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{{ job.cv.cover_letter_file.url }}" target="_blank" rel="noreferrer">Preview</a>
+                            <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{% url 'jobs:cv-cover-letter-preview' job.cv.pk %}" target="_blank" rel="noreferrer">Preview</a>
                             <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{{ job.cv.cover_letter_file.url }}" download>Download</a>
                         </div>
                     {% else %}

@@ -8,11 +8,9 @@
         {% csrf_token %}
         <div class="grid gap-4 md:grid-cols-2">
             {% for field in form %}
-                {% if field.name != 'cover_letter_file' %}
-                    <div class="{% if field.name == 'file' %}md:col-span-2{% endif %}">
-                        {% include 'partials/form_field.html' with field=field %}
-                    </div>
-                {% endif %}
+                <div class="{% if field.name == 'file' %}md:col-span-2{% endif %}">
+                    {% include 'partials/form_field.html' with field=field %}
+                </div>
             {% endfor %}
         </div>
         <div class="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-end">

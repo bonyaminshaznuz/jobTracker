@@ -1,10 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
+from mimetypes import guess_type
+from pathlib import Path
 from uuid import uuid4
 
 from interviews.models import InterviewRound
@@ -368,6 +371,27 @@ class CVDeleteView(LoginRequiredMixin, UserQuerysetMixin, DeleteView):
 	def form_valid(self, form):
 		messages.success(self.request, "CV deleted.")
 		return super().form_valid(form)
+
+
+class CVPreviewView(LoginRequiredMixin, UserQuerysetMixin, View):
+	def get(self, request, pk, file_type):
+		cv = get_object_or_404(CV, pk=pk, user=request.user)
+		if file_type == "file":
+			file_field = cv.file
+		elif file_type == "cover_letter":
+			file_field = cv.cover_letter_file
+		else:
+			raise Http404("Unsupported file type.")
+
+		if not file_field:
+			messages.error(request, "No file available for preview.")
+			return redirect("jobs:cv-list")
+
+		file_field.open("rb")
+		content_type, _ = guess_type(file_field.name)
+		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
+		response["Content-Disposition"] = f'inline; filename="{Path(file_field.name).name}"'
+		return response
 
 
 class KanbanView(LoginRequiredMixin, TemplateView):
