@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <h2 class="text-xl font-bold sm:text-2xl">Manage Categories</h2>
+    <a href="{% url 'jobs:category-create' %}" class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-center text-white hover:bg-slate-800 sm:w-auto">Add Category</a>
+</div>
+
+<div class="space-y-3 md:hidden">
+    {% for category in categories %}
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900">{{ category.name }}</h3>
+                    <p class="mt-1 text-xs text-slate-500">Created {{ category.created_at|date:'M d, Y' }}</p>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                    <a class="inline-flex rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100" href="{% url 'jobs:category-update' category.pk %}">Edit</a>
+                    {% if category.name != 'Uncategorized' %}
+                        <a class="inline-flex rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100" href="{% url 'jobs:category-delete' category.pk %}">Delete</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">No categories yet.</div>
+    {% endfor %}
+</div>
+
+<div class="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+    <table class="min-w-[640px] w-full text-sm">
+        <thead class="bg-slate-100/80 text-slate-700"><tr><th class="p-3 text-left">Name</th><th class="p-3 text-left">Created</th><th class="p-3 text-left">Actions</th></tr></thead>
+        <tbody>
+            {% for category in categories %}
+                <tr class="border-t border-slate-100 hover:bg-slate-50/70">
+                    <td class="p-3 font-medium">{{ category.name }}</td>
+                    <td class="p-3 text-slate-600">{{ category.created_at|date:'M d, Y' }}</td>
+                    <td class="p-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <a class="inline-flex rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100" href="{% url 'jobs:category-update' category.pk %}">Edit</a>
+                            {% if category.name != 'Uncategorized' %}<a class="inline-flex rounded-md border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100" href="{% url 'jobs:category-delete' category.pk %}">Delete</a>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

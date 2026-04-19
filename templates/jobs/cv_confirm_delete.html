@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Delete CV{% endblock %}
+{% block content %}
+<div class="max-w-lg bg-white p-6 rounded shadow">
+    <h2 class="text-xl font-bold mb-3">Delete CV</h2>
+    <p class="mb-4">Are you sure you want to delete {{ object.name }} {{ object.version }}?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button class="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Job Form{% endblock %}
+{% block content %}
+<div class="max-w-4xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 md:p-8">
+    <h2 class="mb-1 text-xl font-bold sm:text-2xl">{% if view.object %}Edit{% else %}New{% endif %} Job Application</h2>
+    <p class="text-sm text-slate-500 mb-6">Fill all required fields and keep your job history organized.</p>
+
+    <form method="post" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        <div class="grid gap-4 md:grid-cols-2">
+            {% include 'partials/form_field.html' with field=form.company_name %}
+            {% include 'partials/form_field.html' with field=form.job_title %}
+            {% include 'partials/form_field.html' with field=form.job_post_url %}
+            {% include 'partials/form_field.html' with field=form.location %}
+            {% include 'partials/form_field.html' with field=form.city_name %}
+            {% include 'partials/form_field.html' with field=form.salary %}
+            {% include 'partials/form_field.html' with field=form.date_applied %}
+            {% include 'partials/form_field.html' with field=form.status %}
+            {% include 'partials/form_field.html' with field=form.category %}
+            {% include 'partials/form_field.html' with field=form.reminder_date %}
+            <div class="md:col-span-2">
+                {% include 'partials/form_field.html' with field=form.job_description %}
+            </div>
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="mb-3 text-sm font-semibold text-slate-700">CV Selection</h3>
+                {% include 'partials/form_field.html' with field=form.cv %}
+                <p class="mt-2 text-xs text-slate-500">Choose an existing CV, or upload one from the right panel.</p>
+            </div>
+
+            {% if not view.object %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="mb-3 text-sm font-semibold text-slate-700">Upload a New CV</h3>
+                <div class="space-y-3">
+                    {% include 'partials/form_field.html' with field=form.new_cv_name %}
+                    {% include 'partials/form_field.html' with field=form.new_cv_version %}
+                    {% include 'partials/form_field.html' with field=form.new_cv_file %}
+                    {% include 'partials/form_field.html' with field=form.new_cv_cover_letter_file %}
+                </div>
+            </div>
+            {% else %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="mb-3 text-sm font-semibold text-slate-700">Quick Cover Upload</h3>
+                <div class="space-y-3">
+                    {% include 'partials/form_field.html' with field=cv_upload_form.cover_letter_file %}
+                    <button
+                        type="submit"
+                        formaction="{% url 'jobs:inline-cv-upload' view.object.pk %}"
+                        formmethod="post"
+                        formenctype="multipart/form-data"
+                        formnovalidate
+                        class="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 sm:w-auto"
+                    >
+                        Upload Cover
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 pt-2">
+            <button class="w-full rounded-lg bg-slate-900 px-5 py-2.5 text-white hover:bg-slate-800 sm:w-auto">Save</button>
+            <a href="{% url 'jobs:list' %}" class="w-full rounded-lg border border-slate-300 px-5 py-2.5 text-center text-slate-700 hover:bg-slate-50 sm:w-auto">Cancel</a>
+        </div>
+    </form>
+
+</div>
+{% endblock %}

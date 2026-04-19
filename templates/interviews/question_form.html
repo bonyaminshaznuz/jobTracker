@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Interview Question{% endblock %}
+{% block content %}
+<div class="max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <h2 class="mb-1 text-xl font-bold sm:text-2xl">Interview Question</h2>
+    <p class="text-sm text-slate-500 mb-6">Save the exact questions, answers, and difficulty for revision.</p>
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {% for field in form %}
+            {% include 'partials/form_field.html' with field=field %}
+        {% endfor %}
+        <button class="w-full rounded-lg bg-slate-900 px-5 py-2.5 text-white hover:bg-slate-800 sm:w-auto">Save</button>
+    </form>
+</div>
+{% endblock %}

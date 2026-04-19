@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+{% block title %}Job Detail{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <h2 class="break-words text-xl font-bold sm:text-2xl">{{ job.company_name }} — {{ job.job_title }}</h2>
+    <div class="w-full lg:w-auto">
+        <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+        <form method="post" action="{% url 'jobs:status-update' job.pk %}" class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="w-full sm:w-36">
+                {{ status_form.status }}
+            </div>
+            <button class="w-full rounded-lg bg-slate-900 px-2.5 py-2 text-sm text-white hover:bg-slate-800 sm:w-auto sm:px-3">Update</button>
+        </form>
+        </div>
+    </div>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-3">
+    <div class="lg:col-span-2 space-y-4">
+        <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm sm:p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <p class="text-sm uppercase tracking-wide text-slate-500">Application Overview</p>
+                    <p class="mt-1 break-words text-xl font-bold text-slate-900 sm:text-2xl">{{ job.company_name }} — {{ job.job_title }}</p>
+                </div>
+                <span class="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">{{ job.get_status_display }}</span>
+            </div>
+
+            <div class="mt-4 grid gap-3 md:grid-cols-2 text-sm text-slate-700">
+                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Category</p>
+                    <p class="mt-1 font-medium">{{ job.category.name }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Location</p>
+                    <p class="mt-1 font-medium">
+                        {{ job.get_location_display }}{% if job.city_name %} - {{ job.city_name }}{% endif %}
+                    </p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Applied</p>
+                    <p class="mt-1 font-medium">{{ job.date_applied }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Job Link</p>
+                    {% if job.job_post_url %}
+                        <a class="mt-1 inline-flex font-medium text-blue-600 hover:text-blue-700" href="{{ job.job_post_url }}" target="_blank" rel="noreferrer">Open Job Post</a>
+                    {% else %}
+                        <p class="mt-1 font-medium text-slate-400">Not provided</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if job.cv %}
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Attached CV</p>
+                    <h3 class="mt-1 break-words text-lg font-semibold text-slate-900">{{ job.cv.name }}</h3>
+                    <p class="text-sm text-slate-500">Version {{ job.cv.version }}</p>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{{ job.cv.file.url }}" target="_blank" rel="noreferrer">Preview CV</a>
+                        <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{{ job.cv.file.url }}" download>Download CV</a>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Attached Cover Letter</p>
+                    <h3 class="mt-1 break-words text-lg font-semibold text-slate-900">{{ job.company_name }}</h3>
+                    <p class="text-sm text-slate-500">Version Final</p>
+                    {% if job.cv.cover_letter_file %}
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{{ job.cv.cover_letter_file.url }}" target="_blank" rel="noreferrer">Preview</a>
+                            <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{{ job.cv.cover_letter_file.url }}" download>Download</a>
+                        </div>
+                    {% else %}
+                        <p class="mt-3 text-sm text-slate-500">No cover letter uploaded.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if job.job_description %}
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <p class="text-xs uppercase tracking-wide text-slate-500">Description</p>
+                <textarea id="job-description-box" readonly class="mt-2 h-40 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200">{{ job.job_description }}</textarea>
+                <button
+                    id="job-description-toggle"
+                    type="button"
+                    class="mt-2 inline-flex rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                    View more
+                </button>
+            </div>
+            {% endif %}
+
+
+        </div>
+    </div>
+
+    <div class="space-y-4">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <h3 class="font-semibold mb-2">Notes</h3>
+            <form method="post" action="{% url 'jobs:note-add' job.pk %}" class="space-y-2">
+                {% csrf_token %}
+                {% for field in note_form %}
+                    {% include 'partials/form_field.html' with field=field %}
+                {% endfor %}
+                <button class="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800">Add Note</button>
+            </form>
+            <ul class="mt-3 space-y-2 text-sm">
+                {% for note in notes %}
+                    <li class="break-words rounded-lg border border-slate-200 p-2.5">{{ note.content }}<br><span class="text-slate-500">{{ note.created_at|date:'M d, Y H:i' }}</span></li>
+                {% empty %}
+                    <li class="text-slate-500">No notes yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h3 class="font-semibold">Interview Tracker</h3>
+                <a class="text-sm font-medium text-blue-600 hover:text-blue-700" href="{% url 'interviews:round-create' job.pk %}">Add Round</a>
+            </div>
+            {% for round in interview_rounds %}
+                <div class="mb-3 rounded-xl border border-slate-200 p-3">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p class="break-words font-semibold">{{ round.get_round_type_display }} - {{ round.date }}</p>
+                        <div class="flex flex-wrap gap-2 text-sm">
+                            <a class="text-blue-600" href="{% url 'interviews:round-update' round.pk %}">Edit</a>
+                            <a class="text-red-600" href="{% url 'interviews:round-delete' round.pk %}">Delete</a>
+                            <a class="text-emerald-600" href="{% url 'interviews:question-create' round.pk %}">Add Question</a>
+                        </div>
+                    </div>
+                    {% if round.notes %}<p class="text-sm text-slate-600">{{ round.notes }}</p>{% endif %}
+                    <ul class="mt-2 space-y-2">
+                        {% for q in round.questions.all %}
+                            <li class="rounded-lg bg-slate-50 p-2.5 text-sm">
+                                <p><strong>Q:</strong> {{ q.question_text }}</p>
+                                {% if q.answer %}<p><strong>A:</strong> {{ q.answer }}</p>{% endif %}
+                                <p class="break-words">Difficulty: {{ q.get_difficulty_display }} | Topic: {{ q.topic_tag|default:'-' }}</p>
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    <a class="text-blue-600" href="{% url 'interviews:question-update' q.pk %}">Edit</a>
+                                    <a class="text-red-600" href="{% url 'interviews:question-delete' q.pk %}">Delete</a>
+                                </div>
+                            </li>
+                        {% empty %}
+                            <li class="text-sm text-slate-500">No questions added yet.</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% empty %}
+                <p class="text-sm text-slate-500">No interview rounds yet.</p>
+            {% endfor %}
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">Activity</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Timeline</h3>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ activities|length }} events</span>
+            </div>
+            <ul class="space-y-3 text-sm">
+                {% for item in activities %}
+                    <li class="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">{{ forloop.counter }}</div>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-medium text-slate-900">{{ item.event }}</p>
+                            <p class="mt-1 text-xs text-slate-500">{{ item.created_at|date:'M d, Y H:i' }}</p>
+                        </div>
+                    </li>
+                {% empty %}
+                    <li class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-slate-500">No activity yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const box = document.getElementById('job-description-box');
+        const toggle = document.getElementById('job-description-toggle');
+
+        if (!box || !toggle) {
+            return;
+        }
+
+        const collapsedHeight = 160;
+        let expanded = false;
+
+        const hasOverflow = box.scrollHeight > collapsedHeight + 8;
+        if (!hasOverflow) {
+            toggle.classList.add('hidden');
+            box.style.height = Math.max(collapsedHeight, box.scrollHeight) + 'px';
+            return;
+        }
+
+        box.style.height = collapsedHeight + 'px';
+
+        toggle.addEventListener('click', function () {
+            expanded = !expanded;
+            if (expanded) {
+                box.style.height = box.scrollHeight + 'px';
+                toggle.textContent = 'View less';
+            } else {
+                box.style.height = collapsedHeight + 'px';
+                toggle.textContent = 'View more';
+            }
+        });
+    })();
+</script>
+{% endblock %}

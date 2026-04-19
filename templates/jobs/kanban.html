@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Kanban Board{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-4">Kanban Board</h2>
+<div class="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+    {% for label, items in columns.items %}
+        <div class="bg-white rounded shadow p-3 min-h-48 drop-zone" data-column="{{ label }}">
+            <h3 class="font-semibold mb-3">{{ label }}</h3>
+            <div class="space-y-2 card-container">
+                {% for job in items %}
+                    <a href="{% url 'jobs:detail' job.pk %}" class="block p-2 rounded border bg-slate-50 hover:bg-slate-100 kanban-card" draggable="true">{{ job.company_name }}<br><span class="text-xs text-slate-500">{{ job.job_title }}</span></a>
+                {% empty %}
+                    <p class="text-sm text-slate-400">No jobs</p>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<script>
+    let draggedCard = null;
+
+    document.querySelectorAll('.kanban-card').forEach((card) => {
+        card.addEventListener('dragstart', () => {
+            draggedCard = card;
+            card.classList.add('opacity-60');
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('opacity-60');
+            draggedCard = null;
+        });
+    });
+
+    document.querySelectorAll('.drop-zone').forEach((zone) => {
+        zone.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            zone.classList.add('ring-2', 'ring-blue-400');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('ring-2', 'ring-blue-400');
+        });
+
+        zone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            zone.classList.remove('ring-2', 'ring-blue-400');
+            if (!draggedCard) {
+                return;
+            }
+            const container = zone.querySelector('.card-container');
+            if (container) {
+                container.appendChild(draggedCard);
+            }
+        });
+    });
+</script>
+{% endblock %}

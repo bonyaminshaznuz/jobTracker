@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Sign Up{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <h2 class="mb-1 text-xl font-semibold sm:text-2xl">Create account</h2>
+    <p class="text-sm text-slate-500 mb-5">Start tracking your job applications in one place.</p>
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {% for field in form %}
+            {% include 'partials/form_field.html' with field=field %}
+        {% endfor %}
+        <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-white hover:bg-slate-800">Sign up</button>
+    </form>
+    <p class="mt-5 text-sm text-slate-600">Already have an account? <a href="{% url 'accounts:login' %}" class="font-medium text-blue-600 hover:text-blue-700">Login</a></p>
+</div>
+{% endblock %}

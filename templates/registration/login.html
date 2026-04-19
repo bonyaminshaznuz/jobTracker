@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% load socialaccount %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+    <h2 class="mb-1 text-xl font-semibold sm:text-2xl">Welcome back</h2>
+    <p class="text-sm text-slate-500 mb-5">Login to continue managing your applications.</p>
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {% for field in form %}
+            {% include 'partials/form_field.html' with field=field %}
+        {% endfor %}
+        <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-white hover:bg-slate-800">Login</button>
+    </form>
+    <div class="my-5 flex items-center gap-3">
+        <div class="h-px flex-1 bg-slate-200"></div>
+        <span class="text-xs uppercase tracking-wide text-slate-400">or</span>
+        <div class="h-px flex-1 bg-slate-200"></div>
+    </div>
+        {% if google_oauth_enabled %}
+            <a href="{% provider_login_url 'google' process='login' %}" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Continue with Google
+            </a>
+        {% else %}
+            <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Google login is not configured yet. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable it.
+            </div>
+        {% endif %}
+    <p class="mt-5 text-sm text-slate-600">New here? <a href="{% url 'accounts:signup' %}" class="font-medium text-blue-600 hover:text-blue-700">Create account</a></p>
+</div>
+{% endblock %}

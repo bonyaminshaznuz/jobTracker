@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Job Tracker{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen overflow-x-hidden bg-slate-100 text-slate-800">
+    <div class="min-h-screen flex flex-col md:flex-row">
+        <aside class="w-full md:w-64 md:min-h-screen md:sticky md:top-0 bg-slate-900 text-white p-4 md:p-5">
+            <h1 class="text-xl font-bold mb-6">Job Tracker</h1>
+            {% if user.is_authenticated %}
+                <nav class="space-y-2 text-sm">
+                    <a href="{% url 'dashboard:home' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Dashboard</a>
+                    <a href="{% url 'jobs:list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Jobs</a>
+                    <a href="{% url 'jobs:create' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/new/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Add Job</a>
+                    <a href="{% url 'jobs:cv-list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path|slice:':9' == '/jobs/cvs' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">CV Manager</a>
+                    <a href="{% url 'jobs:category-list' %}" class="block px-3 py-2 rounded-lg transition {% if request.path|slice:':16' == '/jobs/categories/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Manage Categories</a>
+                    <a href="{% url 'jobs:kanban' %}" class="block px-3 py-2 rounded-lg transition {% if request.path == '/jobs/kanban/' %}bg-slate-700 font-semibold{% else %}hover:bg-slate-700{% endif %}">Kanban Board</a>
+                    <form action="{% url 'accounts:logout' %}" method="post" class="pt-3">
+                        {% csrf_token %}
+                        <button type="submit" class="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition">Logout</button>
+                    </form>
+                </nav>
+            {% else %}
+                <div class="space-y-2 text-sm">
+                    <a href="{% url 'accounts:login' %}" class="block px-3 py-2 rounded-lg hover:bg-slate-700 transition">Login</a>
+                    <a href="{% url 'accounts:signup' %}" class="block px-3 py-2 rounded-lg hover:bg-slate-700 transition">Create account</a>
+                </div>
+            {% endif %}
+        </aside>
+
+        <main class="min-w-0 flex-1 p-3 sm:p-4 md:p-8 lg:p-10">
+            {% include 'partials/messages.html' %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

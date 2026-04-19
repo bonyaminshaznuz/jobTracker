@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <h2 class="text-xl font-bold sm:text-2xl">Job Applications</h2>
+    <a href="{% url 'jobs:create' %}" class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-center text-white hover:bg-slate-800 sm:w-auto">Add Job</a>
+</div>
+
+<form method="get" class="mb-5 grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4 md:p-5">
+    <div>
+        <label class="mb-1 block text-xs font-medium text-slate-600">Search</label>
+        {{ filter_form.q }}
+    </div>
+    <div>
+        <label class="mb-1 block text-xs font-medium text-slate-600">Status</label>
+        {{ filter_form.status }}
+    </div>
+    <div>
+        <label class="mb-1 block text-xs font-medium text-slate-600">Category</label>
+        {{ filter_form.category }}
+    </div>
+    <div>
+        <label class="mb-1 block text-xs font-medium text-slate-600">Location</label>
+        {{ filter_form.location }}
+    </div>
+    <div class="md:col-span-4 flex flex-wrap items-center gap-2">
+        <button class="w-full rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800 sm:w-auto">Apply Filters</button>
+        <a href="{% url 'jobs:list' %}" class="w-full rounded-lg border border-slate-300 px-4 py-2 text-center text-slate-700 hover:bg-slate-50 sm:w-auto">Reset</a>
+    </div>
+</form>
+
+<div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-100/80 text-slate-700">
+            <tr>
+                <th class="p-3 text-left">Company</th>
+                <th class="p-3 text-left">Title</th>
+                <th class="p-3 text-left">Status</th>
+                <th class="p-3 text-left">Category</th>
+                <th class="p-3 text-left">Date</th>
+                <th class="p-3 text-left">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr class="border-t border-slate-100 hover:bg-slate-50/70 transition">
+                <td class="p-3 font-medium">{{ job.company_name }}</td>
+                <td class="p-3">{{ job.job_title }}</td>
+                <td class="p-3"><span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800">{{ job.get_status_display }}</span></td>
+                <td class="p-3"><span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{{ job.category.name }}</span></td>
+                <td class="p-3 text-slate-600">{{ job.date_applied }}</td>
+                <td class="p-3">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <a class="font-medium text-blue-600 hover:text-blue-700" href="{% url 'jobs:detail' job.pk %}">View</a>
+                        <a class="font-medium text-slate-700 hover:text-slate-900" href="{% url 'jobs:update' job.pk %}">Edit</a>
+                        <a class="font-medium text-red-600 hover:text-red-700" href="{% url 'jobs:delete' job.pk %}">Delete</a>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="p-6 text-center text-slate-500">No applications found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="mt-4 flex flex-wrap items-center gap-2">
+    {% if page_obj.has_previous %}<a class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" href="?page={{ page_obj.previous_page_number }}">Prev</a>{% endif %}
+    <span class="text-sm text-slate-600">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50" href="?page={{ page_obj.next_page_number }}">Next</a>{% endif %}
+</div>
+{% endblock %}
