@@ -47,7 +47,12 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 def env_list(name: str, default: str = "") -> list[str]:
     raw_value = os.getenv(name, default)
-    return [item.strip() for item in raw_value.split(",") if item.strip()]
+    cleaned_items = []
+    for item in raw_value.split(","):
+        value = item.strip().strip('"').strip("'")
+        if value:
+            cleaned_items.append(value)
+    return cleaned_items
 
 
 # Quick-start development settings - unsuitable for production
@@ -63,6 +68,9 @@ if not DEBUG and SECRET_KEY == "dev-secret-key-change-me":
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY in production.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost")
+render_external_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_external_hostname:
+    ALLOWED_HOSTS.append(render_external_hostname)
 if not ALLOWED_HOSTS:
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
