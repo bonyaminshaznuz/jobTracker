@@ -57,14 +57,24 @@ This repository includes:
 ### Option B: Manual Web Service
 1. Create a PostgreSQL database in Render.
 2. Create a Web Service and set:
-   - Build command: `pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate`
-   - Start command: `gunicorn config.wsgi:application --log-file -`
+   - Build command: `pip install -r requirements.txt && python manage.py collectstatic --noinput`
+   - Start command: `python manage.py migrate --noinput && gunicorn config.wsgi:application --log-file -`
 3. Add environment variables:
    - `DJANGO_DEBUG=False`
    - `DJANGO_SECRET_KEY` (strong random value)
    - `DATABASE_URL` (from Render PostgreSQL connection string)
    - `DJANGO_ALLOWED_HOSTS` (e.g. `your-service-name.onrender.com`)
    - `DJANGO_CSRF_TRUSTED_ORIGINS` (e.g. `https://your-service-name.onrender.com`)
+
+### Option C: Existing Render PostgreSQL (Fastest)
+If you already have a database URL, use this directly:
+1. Keep `render.yaml` as-is and deploy from GitHub with **Blueprint**.
+2. In the new web service, open **Environment** and set:
+   - `DATABASE_URL` = your existing internal URL
+   - Example: `postgresql://<user>:<password>@<host>/<db_name>`
+3. Redeploy the service.
+4. Open **Shell** and run:
+   - `python manage.py createsuperuser`
 
 ### Security Defaults Enabled in Production (`DJANGO_DEBUG=False`)
 - HTTPS redirect via proxy header
