@@ -98,8 +98,8 @@ class JobApplicationForm(forms.ModelForm):
         selected_cv = cleaned_data.get("cv")
         user = getattr(self, "user", None)
 
-        # Ignore the default version placeholder when no upload inputs were provided.
         upload_intent = bool(new_cv_file or new_cv_name or (new_cv_version and new_cv_version.lower() != "v1"))
+            upload_intent = bool(new_cv_file or new_cv_name or (new_cv_version and new_cv_version.lower() != "v1"))
 
         if new_cv_file and not new_cv_name:
             self.add_error("new_cv_name", "Enter a name for the new CV.")

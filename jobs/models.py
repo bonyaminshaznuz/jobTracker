@@ -58,13 +58,6 @@ class CV(models.Model):
 		upload_to="cvs/",
 		validators=[validate_upload_extension, validate_upload_size],
 	)
-	cover_letter_text = models.TextField(blank=True)
-	cover_letter_file = models.FileField(
-		upload_to="cover_letters/",
-		blank=True,
-		null=True,
-		validators=[validate_upload_extension, validate_upload_size],
-	)
 	created_at = models.DateTimeField(auto_now_add=True)
 
 	class Meta:

@@ -4,7 +4,8 @@
 - Authentication (register/login/logout)
 - Job application CRUD with status/category/cv tracking
 - Dynamic per-user categories with default `Uncategorized`
-- CV manager with versioning and optional cover letter
+- CV manager with versioning
+- Independent cover letter attachments on job applications
 - Interview rounds + interview questions tracker
 - Notes and activity timeline
 - Follow-up reminders on dashboard
