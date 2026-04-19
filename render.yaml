@@ -1,13 +1,12 @@
-disks:
-  - name: media
-    mountPath: /var/data
-    sizeGB: 1
-
 services:
   - type: web
     name: jobtracker
     env: python
     plan: free
+    disk:
+      name: media
+      mountPath: /var/data
+      sizeGB: 1
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
     startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --log-file -
     autoDeploy: true

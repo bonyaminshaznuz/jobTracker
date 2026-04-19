@@ -218,7 +218,8 @@ if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT', BASE_DIR / 'media'))
+MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT') or (BASE_DIR / 'media'))
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
