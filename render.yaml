@@ -1,3 +1,8 @@
+disks:
+  - name: media
+    mountPath: /var/data
+    sizeGB: 1
+
 services:
   - type: web
     name: jobtracker
@@ -15,5 +20,7 @@ services:
         value: ".onrender.com"
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
+      - key: MEDIA_ROOT
+        value: /var/data/media
       - key: DATABASE_URL
         sync: false

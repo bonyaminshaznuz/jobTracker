@@ -65,6 +65,12 @@ This repository includes:
    - `DATABASE_URL` (from Render PostgreSQL connection string)
    - `DJANGO_ALLOWED_HOSTS` (e.g. `your-service-name.onrender.com`)
    - `DJANGO_CSRF_TRUSTED_ORIGINS` (e.g. `https://your-service-name.onrender.com`)
+   - `MEDIA_ROOT` (for example `/var/data/media` if using a persistent disk)
+
+### Uploaded Files on Render
+- Uploaded CVs and cover letters need persistent storage on Render.
+- This project supports a `MEDIA_ROOT` environment variable so you can point uploads to a mounted disk path like `/var/data/media`.
+- If you do not mount persistent storage, uploaded files may work locally but disappear or 404 after redeploys on Render.
 
 ### Option C: Existing Render PostgreSQL (Fastest)
 If you already have a database URL, use this directly:
