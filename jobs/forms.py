@@ -56,7 +56,7 @@ class JobApplicationForm(forms.ModelForm):
     new_cv_name = forms.CharField(required=False, label="New CV name")
     new_cv_version = forms.CharField(required=False, label="New CV version")
     new_cv_file = forms.FileField(required=False, label="Upload a new CV")
-    new_cv_cover_letter_file = forms.FileField(required=False, label="Upload cover letter file")
+    new_cover_letter_file = forms.FileField(required=False, label="Upload a cover letter")
 
     class Meta:
         model = JobApplication
@@ -94,7 +94,7 @@ class JobApplicationForm(forms.ModelForm):
         new_cv_name = (cleaned_data.get("new_cv_name") or "").strip()
         new_cv_version = (cleaned_data.get("new_cv_version") or "").strip()
         new_cv_file = cleaned_data.get("new_cv_file")
-        new_cv_cover_letter_file = cleaned_data.get("new_cv_cover_letter_file")
+        new_cover_letter_file = cleaned_data.get("new_cover_letter_file")
         selected_cv = cleaned_data.get("cv")
         user = getattr(self, "user", None)
 
@@ -112,28 +112,24 @@ class JobApplicationForm(forms.ModelForm):
             if exists.exists():
                 self.add_error("new_cv_name", "You already have a CV with this name and version.")
 
-        if new_cv_cover_letter_file and not new_cv_file and not selected_cv:
-            self.add_error("cv", "Select an existing CV or upload a new CV file to attach cover letter.")
-
         if not upload_intent:
             new_cv_name = ""
             new_cv_version = ""
 
         cleaned_data["new_cv_name"] = new_cv_name
         cleaned_data["new_cv_version"] = new_cv_version
+        cleaned_data["new_cover_letter_file"] = new_cover_letter_file
         return cleaned_data
 
 
 class CVForm(forms.ModelForm):
     class Meta:
         model = CV
-        fields = ["name", "version", "file", "cover_letter_file"]
+        fields = ["name", "version", "file"]
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
-        # CV manager should show a plain file picker for cover file (no Currently/Clear/Change block).
-        self.fields["cover_letter_file"].widget = forms.FileInput()
         apply_input_classes(self)
 
     def clean(self):
@@ -152,6 +148,14 @@ class CVForm(forms.ModelForm):
         cleaned_data["name"] = name
         cleaned_data["version"] = version
         return cleaned_data
+
+
+class CoverLetterUploadForm(forms.Form):
+    cover_letter_file = forms.FileField(required=False, label="Upload a cover letter")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        apply_input_classes(self)
 
 
 class NoteForm(forms.ModelForm):

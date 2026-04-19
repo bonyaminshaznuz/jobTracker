@@ -17,7 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,5 +29,30 @@ urlpatterns = [
     path('', include('dashboard.urls')),
 ]
 
-# Render and other production hosts need an explicit media route for uploaded files.
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+else:
+    if settings.MEDIA_ROOT and settings.MEDIA_ROOT.exists():
+        urlpatterns += [
+            re_path(
+                r'^media/(?P<path>.*)$',
+                serve,
+                {
+                    'document_root': str(settings.MEDIA_ROOT),
+                    'show_indexes': False,
+                },
+            ),
+        ]
+    if settings.STATIC_ROOT and settings.STATIC_ROOT.exists():
+        urlpatterns += [
+            re_path(
+                r'^static/(?P<path>.*)$',
+                serve,
+                {
+                    'document_root': str(settings.STATIC_ROOT),
+                    'show_indexes': False,
+                },
+            ),
+        ]

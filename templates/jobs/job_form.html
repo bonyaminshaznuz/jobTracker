@@ -37,14 +37,14 @@
                     {% include 'partials/form_field.html' with field=form.new_cv_name %}
                     {% include 'partials/form_field.html' with field=form.new_cv_version %}
                     {% include 'partials/form_field.html' with field=form.new_cv_file %}
-                    {% include 'partials/form_field.html' with field=form.new_cv_cover_letter_file %}
+                    {% include 'partials/form_field.html' with field=form.new_cover_letter_file %}
                 </div>
             </div>
             {% else %}
             <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <h3 class="mb-3 text-sm font-semibold text-slate-700">Quick Cover Upload</h3>
+                <h3 class="mb-3 text-sm font-semibold text-slate-700">Quick Cover Letter Upload</h3>
                 <div class="space-y-3">
-                    {% include 'partials/form_field.html' with field=cv_upload_form.cover_letter_file %}
+                    {% include 'partials/form_field.html' with field=cover_letter_upload_form.cover_letter_file %}
                     <button
                         type="submit"
                         formaction="{% url 'jobs:inline-cv-upload' view.object.pk %}"
@@ -53,7 +53,7 @@
                         formnovalidate
                         class="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 sm:w-auto"
                     >
-                        Upload Cover
+                        Upload Cover Letter
                     </button>
                 </div>
             </div>

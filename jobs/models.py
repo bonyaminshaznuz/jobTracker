@@ -120,6 +120,12 @@ class JobApplication(models.Model):
 	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="jobs")
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="jobs")
 	cv = models.ForeignKey(CV, on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs")
+	cover_letter_file = models.FileField(
+		upload_to="cover_letters/",
+		blank=True,
+		null=True,
+		validators=[validate_upload_extension, validate_upload_size],
+	)
 	company_name = models.CharField(max_length=150)
 	job_title = models.CharField(max_length=150)
 	job_post_url = models.URLField(blank=True)
