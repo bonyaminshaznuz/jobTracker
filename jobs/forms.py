@@ -99,7 +99,6 @@ class JobApplicationForm(forms.ModelForm):
         user = getattr(self, "user", None)
 
         upload_intent = bool(new_cv_file or new_cv_name or (new_cv_version and new_cv_version.lower() != "v1"))
-            upload_intent = bool(new_cv_file or new_cv_name or (new_cv_version and new_cv_version.lower() != "v1"))
 
         if new_cv_file and not new_cv_name:
             self.add_error("new_cv_name", "Enter a name for the new CV.")
