@@ -8,7 +8,7 @@ services:
       mountPath: /var/data
       sizeGB: 1
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate --noinput && gunicorn config.wsgi:application --log-file -
+    startCommand: python manage.py migrate --noinput && python manage.py ensure_superuser && gunicorn config.wsgi:application --log-file -
     autoDeploy: true
     envVars:
       - key: DJANGO_DEBUG
@@ -23,3 +23,9 @@ services:
         value: /var/data/media
       - key: DATABASE_URL
         sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: admin
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: admin@example.com
+      - key: DJANGO_SUPERUSER_PASSWORD
+        value: Admin12345!
