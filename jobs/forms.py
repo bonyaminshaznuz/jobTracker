@@ -53,10 +53,8 @@ class JobApplicationForm(forms.ModelForm):
         widget=forms.DateInput(attrs={"type": "date"}),
         help_text="Optional follow-up reminder date",
     )
-    new_cv_name = forms.CharField(required=False, label="New CV name")
-    new_cv_version = forms.CharField(required=False, label="New CV version")
-    new_cv_file = forms.FileField(required=False, label="Upload a new CV")
-    new_cover_letter_file = forms.FileField(required=False, label="Upload a cover letter")
+    new_cv_file = forms.FileField(required=False, label="Upload CV")
+    new_cover_letter_file = forms.FileField(required=False, label="Upload cover letter")
 
     class Meta:
         model = JobApplication
@@ -71,7 +69,6 @@ class JobApplicationForm(forms.ModelForm):
             "date_applied",
             "status",
             "category",
-            "cv",
         ]
         widgets = {
             "date_applied": forms.DateInput(attrs={"type": "date"}),
@@ -82,41 +79,17 @@ class JobApplicationForm(forms.ModelForm):
         self.user = user
         if user:
             self.fields["category"].queryset = Category.objects.filter(user=user)
-            self.fields["cv"].queryset = CV.objects.filter(user=user)
         self.fields["category"].empty_label = "Select category"
-        self.fields["cv"].empty_label = "No CV"
         self.fields["location"].choices = [("", "Select type")] + list(JobApplication.LOCATION_CHOICES)
-        self.fields["new_cv_version"].initial = "v1"
         apply_input_classes(self)
 
     def clean(self):
         cleaned_data = super().clean()
-        new_cv_name = (cleaned_data.get("new_cv_name") or "").strip()
-        new_cv_version = (cleaned_data.get("new_cv_version") or "").strip()
         new_cv_file = cleaned_data.get("new_cv_file")
         new_cover_letter_file = cleaned_data.get("new_cover_letter_file")
-        selected_cv = cleaned_data.get("cv")
-        user = getattr(self, "user", None)
+        if not self.instance.pk and not new_cv_file:
+            self.add_error("new_cv_file", "Upload a CV file for this job application.")
 
-        upload_intent = bool(new_cv_file or new_cv_name or (new_cv_version and new_cv_version.lower() != "v1"))
-
-        if new_cv_file and not new_cv_name:
-            self.add_error("new_cv_name", "Enter a name for the new CV.")
-        if new_cv_file and not new_cv_version:
-            self.add_error("new_cv_version", "Enter a version for the new CV.")
-        if upload_intent and not new_cv_file:
-            self.add_error("new_cv_file", "Choose a file to upload the new CV.")
-        if user and new_cv_file and new_cv_name and new_cv_version:
-            exists = CV.objects.filter(user=user, name__iexact=new_cv_name, version__iexact=new_cv_version)
-            if exists.exists():
-                self.add_error("new_cv_name", "You already have a CV with this name and version.")
-
-        if not upload_intent:
-            new_cv_name = ""
-            new_cv_version = ""
-
-        cleaned_data["new_cv_name"] = new_cv_name
-        cleaned_data["new_cv_version"] = new_cv_version
         cleaned_data["new_cover_letter_file"] = new_cover_letter_file
         return cleaned_data
 

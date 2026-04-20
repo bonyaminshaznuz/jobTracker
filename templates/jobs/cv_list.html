@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}CV Manager{% endblock %}
+{% block title %}Uploaded CVs{% endblock %}
 {% block content %}
 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <h2 class="text-xl font-bold sm:text-2xl">CV Manager</h2>
+    <h2 class="text-xl font-bold sm:text-2xl">Uploaded CVs</h2>
     <a href="{% url 'jobs:cv-create' %}" class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-center text-white hover:bg-slate-800 sm:w-auto">Upload CV</a>
 </div>
 <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -23,7 +23,7 @@
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="4" class="p-4 text-center text-slate-500">No CV uploaded.</td></tr>
+                <tr><td colspan="4" class="p-4 text-center text-slate-500">No CV uploaded yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>

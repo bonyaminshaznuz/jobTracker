@@ -8,15 +8,22 @@ from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 from mimetypes import guess_type
 from pathlib import Path
+from uuid import uuid4
 
 from interviews.models import InterviewRound
-from jobs.forms import CVForm, CategoryForm, CoverLetterUploadForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
+from jobs.forms import CVForm, CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
 from jobs.models import ActivityLog, CV, Category, JobApplication, Note, Reminder, log_activity
 
 
 class UserQuerysetMixin:
 	def get_queryset(self):
 		return super().get_queryset().filter(user=self.request.user)
+
+
+def build_uploaded_cv(user, file_obj):
+	name = Path(file_obj.name).stem.strip() or "CV"
+	version = f"upload-{uuid4().hex[:8]}"
+	return CV.objects.create(user=user, name=name[:150], version=version[:20], file=file_obj)
 
 
 class JobListView(LoginRequiredMixin, ListView):
@@ -53,27 +60,21 @@ class JobCreateView(LoginRequiredMixin, CreateView):
 	def form_valid(self, form):
 		form.instance.user = self.request.user
 
-		new_cv_file = form.cleaned_data.get("new_cv_file")
-		new_cv_name = form.cleaned_data.get("new_cv_name")
-		new_cv_version = form.cleaned_data.get("new_cv_version")
 		new_cover_letter_file = form.cleaned_data.get("new_cover_letter_file")
-		selected_cv = form.cleaned_data.get("cv")
+		new_cv_file = form.cleaned_data.get("new_cv_file")
 
 		if new_cover_letter_file:
 			form.instance.cover_letter_file = new_cover_letter_file
 
-		if new_cv_file and new_cv_name and new_cv_version:
-			cv = CV.objects.create(
-				user=self.request.user,
-				name=new_cv_name,
-				version=new_cv_version,
-				file=new_cv_file,
-			)
-			form.instance.cv = cv
-
 		response = super().form_valid(form)
+		if new_cv_file:
+			cv = build_uploaded_cv(self.request.user, new_cv_file)
+			self.object.cv = cv
+			self.object.save(update_fields=["cv", "updated_at"])
+		if new_cover_letter_file:
+			self.object.save(update_fields=["cover_letter_file", "updated_at"])
 		self._upsert_reminder(form.cleaned_data.get("reminder_date"))
-		log_activity(self.request.user, self.object, "Job application created")
+		log_activity(self.request.user, self.object, f"Status updated: {self.object.get_status_display()}")
 		messages.success(self.request, "Job application added.")
 		return response
 
@@ -107,7 +108,24 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		return initial
 
 	def form_valid(self, form):
+		previous_cover_letter = self.get_object().cover_letter_file if self.get_object().pk else None
 		response = super().form_valid(form)
+		new_cv_file = form.cleaned_data.get("new_cv_file")
+		new_cover_letter_file = form.cleaned_data.get("new_cover_letter_file")
+		if new_cv_file:
+			cv = build_uploaded_cv(self.request.user, new_cv_file)
+			self.object.cv = cv
+		if new_cover_letter_file:
+			if previous_cover_letter:
+				previous_cover_letter.delete(save=False)
+			self.object.cover_letter_file = new_cover_letter_file
+		update_fields = ["updated_at"]
+		if new_cv_file:
+			update_fields.append("cv")
+		if new_cover_letter_file:
+			update_fields.append("cover_letter_file")
+		if len(update_fields) > 1:
+			self.object.save(update_fields=update_fields)
 		reminder_date = form.cleaned_data.get("reminder_date")
 		if reminder_date:
 			Reminder.objects.update_or_create(
@@ -124,7 +142,6 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
 		context["status_form"] = JobStatusForm(initial={"status": self.object.status})
-		context["cover_letter_upload_form"] = CoverLetterUploadForm()
 		return context
 
 	def get_success_url(self):
@@ -159,10 +176,21 @@ class JobDetailView(LoginRequiredMixin, UserQuerysetMixin, DetailView):
 		context = super().get_context_data(**kwargs)
 		job = self.object
 		status_activities = []
+		seen_applied = False
 		for activity in ActivityLog.objects.filter(user=self.request.user, job=job).order_by("created_at"):
 			status_label = self._format_status_event(activity.event)
 			if status_label:
+				if status_label == JobApplication.STATUS_APPLIED:
+					seen_applied = True
 				status_activities.append({"status": status_label, "created_at": activity.created_at})
+		if not seen_applied:
+			status_activities.insert(
+				0,
+				{
+					"status": job.get_status_display() if job.status == JobApplication.STATUS_APPLIED else "Applied",
+					"created_at": job.created_at,
+				},
+			)
 		context.update(
 			{
 				"status_form": JobStatusForm(initial={"status": job.status}),
