@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Server Error{% endblock %}
+{% block content %}
+<div class="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 px-6 py-12 shadow-sm sm:px-10 sm:py-16">
+    <div class="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-red-200/50 blur-3xl"></div>
+    <div class="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-slate-200/60 blur-3xl"></div>
+
+    <div class="relative mx-auto flex max-w-3xl flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between">
+        <div class="max-w-xl">
+            <span class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-red-700">
+                Error 500
+            </span>
+            <h1 class="mt-4 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
+                Something broke on our side.
+            </h1>
+            <p class="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
+                The server hit an unexpected problem while handling this request.
+                Try again in a moment, or return to a safe page below.
+            </p>
+
+            <div class="mt-6 flex flex-wrap gap-3">
+                <a href="{% url 'dashboard:home' %}" class="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800">
+                    Go to Dashboard
+                </a>
+                <a href="{% url 'jobs:list' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                    View Jobs
+                </a>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'jobs:create' %}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                        Add Job
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div class="flex items-center justify-between">
+                <span class="text-sm font-medium uppercase tracking-wide text-slate-500">Status</span>
+                <span class="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">500</span>
+            </div>
+
+            <div class="mt-6 space-y-3 text-sm text-slate-600">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="font-medium text-slate-900">What you can do</p>
+                    <ul class="mt-2 space-y-2">
+                        <li>Refresh the page and try again.</li>
+                        <li>Go back to the dashboard and continue from there.</li>
+                        <li>If the problem persists, check the app logs.</li>
+                    </ul>
+                </div>
+
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-4">
+                    <p class="font-medium text-slate-900">No data was changed yet</p>
+                    <p class="mt-1 text-slate-500">This error page is meant to help you recover without losing your place.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
