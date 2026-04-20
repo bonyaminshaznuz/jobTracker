@@ -180,7 +180,7 @@ class JobDetailView(LoginRequiredMixin, UserQuerysetMixin, DetailView):
 		for activity in ActivityLog.objects.filter(user=self.request.user, job=job).order_by("created_at"):
 			status_label = self._format_status_event(activity.event)
 			if status_label:
-				if status_label == JobApplication.STATUS_APPLIED:
+				if status_label.strip().lower() == JobApplication.STATUS_APPLIED:
 					seen_applied = True
 				status_activities.append({"status": status_label, "created_at": activity.created_at})
 		if not seen_applied:
