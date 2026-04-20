@@ -163,12 +163,12 @@
                 </div>
                 <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{{ activities|length }} events</span>
             </div>
-            <ul class="space-y-3 text-sm">
+            <ul class="flex flex-col-reverse space-y-3 space-y-reverse text-sm">
                 {% for item in activities %}
                     <li class="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                         <div class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">{{ forloop.counter }}</div>
                         <div class="min-w-0 flex-1">
-                            <p class="font-medium text-slate-900">{{ item.event }}</p>
+                            <p class="font-medium text-slate-900">{{ item.status }}</p>
                             <p class="mt-1 text-xs text-slate-500">{{ item.created_at|date:'M d, Y H:i' }}</p>
                         </div>
                     </li>

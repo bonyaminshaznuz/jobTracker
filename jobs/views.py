@@ -146,9 +146,23 @@ class JobDetailView(LoginRequiredMixin, UserQuerysetMixin, DetailView):
 	template_name = "jobs/job_detail.html"
 	context_object_name = "job"
 
+	def _format_status_event(self, event):
+		if not event.startswith("Status updated:"):
+			return None
+
+		remainder = event.split(":", 1)[1].strip()
+		if "->" in remainder:
+			return remainder.split("->", 1)[1].strip()
+		return remainder
+
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
 		job = self.object
+		status_activities = []
+		for activity in ActivityLog.objects.filter(user=self.request.user, job=job).order_by("created_at"):
+			status_label = self._format_status_event(activity.event)
+			if status_label:
+				status_activities.append({"status": status_label, "created_at": activity.created_at})
 		context.update(
 			{
 				"status_form": JobStatusForm(initial={"status": job.status}),
@@ -157,7 +171,7 @@ class JobDetailView(LoginRequiredMixin, UserQuerysetMixin, DetailView):
 				"interview_rounds": InterviewRound.objects.filter(user=self.request.user, job=job).prefetch_related(
 					"questions"
 				),
-				"activities": ActivityLog.objects.filter(user=self.request.user, job=job),
+				"activities": status_activities,
 			}
 		)
 		return context
