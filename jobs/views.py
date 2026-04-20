@@ -3,6 +3,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect
+from django.db import transaction
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
@@ -18,6 +19,14 @@ from jobs.models import ActivityLog, CV, Category, JobApplication, Note, Reminde
 class UserQuerysetMixin:
 	def get_queryset(self):
 		return super().get_queryset().filter(user=self.request.user)
+
+
+def _delete_file_after_commit(file_field):
+	if not file_field or not getattr(file_field, "name", ""):
+		return
+	storage = file_field.storage
+	file_name = file_field.name
+	transaction.on_commit(lambda storage=storage, file_name=file_name: storage.delete(file_name) if storage.exists(file_name) else None)
 
 
 def build_uploaded_cv(user, file_obj):
@@ -108,35 +117,38 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		return initial
 
 	def form_valid(self, form):
-		previous_cover_letter = self.get_object().cover_letter_file if self.get_object().pk else None
-		response = super().form_valid(form)
 		new_cv_file = form.cleaned_data.get("new_cv_file")
 		new_cover_letter_file = form.cleaned_data.get("new_cover_letter_file")
-		if new_cv_file:
-			cv = build_uploaded_cv(self.request.user, new_cv_file)
-			self.object.cv = cv
-		if new_cover_letter_file:
-			if previous_cover_letter:
-				previous_cover_letter.delete(save=False)
-			self.object.cover_letter_file = new_cover_letter_file
-		update_fields = ["updated_at"]
-		if new_cv_file:
-			update_fields.append("cv")
-		if new_cover_letter_file:
-			update_fields.append("cover_letter_file")
-		if len(update_fields) > 1:
-			self.object.save(update_fields=update_fields)
-		reminder_date = form.cleaned_data.get("reminder_date")
-		if reminder_date:
-			Reminder.objects.update_or_create(
-				user=self.request.user,
-				job=self.object,
-				defaults={"remind_on": reminder_date, "completed": False},
-			)
-		else:
-			Reminder.objects.filter(user=self.request.user, job=self.object).delete()
-		log_activity(self.request.user, self.object, "Job application updated")
-		messages.success(self.request, "Job application updated.")
+		previous_cover_letter = self.get_object().cover_letter_file
+		previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+
+		with transaction.atomic():
+			response = super().form_valid(form)
+			if new_cv_file:
+				cv = build_uploaded_cv(self.request.user, new_cv_file)
+				self.object.cv = cv
+			if new_cover_letter_file:
+				self.object.cover_letter_file = new_cover_letter_file
+			update_fields = ["updated_at"]
+			if new_cv_file:
+				update_fields.append("cv")
+			if new_cover_letter_file:
+				update_fields.append("cover_letter_file")
+			if len(update_fields) > 1:
+				self.object.save(update_fields=update_fields)
+			if new_cover_letter_file and previous_cover_letter_name and previous_cover_letter_name != self.object.cover_letter_file.name:
+				_delete_file_after_commit(previous_cover_letter)
+			reminder_date = form.cleaned_data.get("reminder_date")
+			if reminder_date:
+				Reminder.objects.update_or_create(
+					user=self.request.user,
+					job=self.object,
+					defaults={"remind_on": reminder_date, "completed": False},
+				)
+			else:
+				Reminder.objects.filter(user=self.request.user, job=self.object).delete()
+			log_activity(self.request.user, self.object, "Job application updated")
+			messages.success(self.request, "Job application updated.")
 		return response
 
 	def get_context_data(self, **kwargs):
@@ -234,27 +246,33 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		selected_cv_id = request.POST.get("cv")
 
 		if uploaded_cover_file and not uploaded_cv_file:
-			if job.cover_letter_file:
-				job.cover_letter_file.delete(save=False)
-			job.cover_letter_file = uploaded_cover_file
-			job.save(update_fields=["cover_letter_file", "updated_at"])
+			previous_cover_letter = job.cover_letter_file
+			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+			with transaction.atomic():
+				job.cover_letter_file = uploaded_cover_file
+				job.save(update_fields=["cover_letter_file", "updated_at"])
+				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
+					_delete_file_after_commit(previous_cover_letter)
 			log_activity(request.user, job, "Cover letter uploaded")
 			messages.success(request, "Cover letter uploaded and attached to the job.")
 			return redirect("jobs:update", pk=job.pk)
 
 		form = CVForm(request.POST, request.FILES, user=request.user)
 		if form.is_valid():
-			cv = form.save(commit=False)
-			cv.user = request.user
-			cv.save()
-			job.cv = cv
-			if uploaded_cover_file:
-				if job.cover_letter_file:
-					job.cover_letter_file.delete(save=False)
-				job.cover_letter_file = uploaded_cover_file
-				job.save(update_fields=["cv", "cover_letter_file", "updated_at"])
-			else:
-				job.save(update_fields=["cv", "updated_at"])
+			previous_cover_letter = job.cover_letter_file
+			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+			with transaction.atomic():
+				cv = form.save(commit=False)
+				cv.user = request.user
+				cv.save()
+				job.cv = cv
+				if uploaded_cover_file:
+					job.cover_letter_file = uploaded_cover_file
+					job.save(update_fields=["cv", "cover_letter_file", "updated_at"])
+					if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
+						_delete_file_after_commit(previous_cover_letter)
+				else:
+					job.save(update_fields=["cv", "updated_at"])
 			log_activity(request.user, job, f"CV attached: {cv.name} ({cv.version})")
 			messages.success(request, "CV uploaded and attached to the job.")
 		else:
