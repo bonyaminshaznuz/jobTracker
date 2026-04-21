@@ -221,29 +221,40 @@ if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 if USE_S3:
+    if 'storages' not in INSTALLED_APPS:
+        INSTALLED_APPS = list(INSTALLED_APPS) + ['storages']
+
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
     AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
-    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', '')
+    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'auto')
     AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN', '').strip()
+    # For Cloudflare R2 or other S3-compatible providers set this to their
+    # endpoint URL, e.g. https://<account-id>.r2.cloudflarestorage.com
+    # Leave blank for standard AWS S3.
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL', '').strip() or None
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
     AWS_LOCATION = os.getenv('AWS_MEDIA_LOCATION', 'media').strip('/')
 
+    _s3_options = {
+        'access_key': AWS_ACCESS_KEY_ID,
+        'secret_key': AWS_SECRET_ACCESS_KEY,
+        'bucket_name': AWS_STORAGE_BUCKET_NAME,
+        'region_name': AWS_S3_REGION_NAME,
+        'default_acl': AWS_DEFAULT_ACL,
+        'querystring_auth': AWS_QUERYSTRING_AUTH,
+        'file_overwrite': AWS_S3_FILE_OVERWRITE,
+        'location': AWS_LOCATION,
+    }
+    if AWS_S3_ENDPOINT_URL:
+        _s3_options['endpoint_url'] = AWS_S3_ENDPOINT_URL
+
     STORAGES = {
         'default': {
             'BACKEND': 'storages.backends.s3.S3Storage',
-            'OPTIONS': {
-                'access_key': AWS_ACCESS_KEY_ID,
-                'secret_key': AWS_SECRET_ACCESS_KEY,
-                'bucket_name': AWS_STORAGE_BUCKET_NAME,
-                'region_name': AWS_S3_REGION_NAME,
-                'default_acl': AWS_DEFAULT_ACL,
-                'querystring_auth': AWS_QUERYSTRING_AUTH,
-                'file_overwrite': AWS_S3_FILE_OVERWRITE,
-                'location': AWS_LOCATION,
-            },
+            'OPTIONS': _s3_options,
         },
         'staticfiles': {
             'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
@@ -252,6 +263,9 @@ if USE_S3:
 
     if AWS_S3_CUSTOM_DOMAIN:
         MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    elif AWS_S3_ENDPOINT_URL:
+        # e.g. Cloudflare R2 public URL pattern
+        MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/{AWS_LOCATION}/"
     else:
         MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_LOCATION}/"
 

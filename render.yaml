@@ -2,22 +2,12 @@ services:
   - type: web
     name: jobtracker
     env: python
-    # -----------------------------------------------------------------------
-    # PLAN NOTE:
-    # "free" plan does NOT support persistent disks — the disk: block below
-    # is silently ignored on free.  Use "starter" ($7/mo) or higher so that
-    # uploaded files survive restarts and redeploys.
-    # -----------------------------------------------------------------------
-    plan: starter
-    disk:
-      name: media-disk
-      mountPath: /var/data
-      sizeGB: 1
+    # Free plan is fine when using Cloudflare R2 / AWS S3 for media storage.
+    # Files are stored in the cloud so Render's ephemeral FS doesn't matter.
+    plan: free
     buildCommand: >-
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput
-    # repair_file_paths --fix auto-corrects any cvs/cvs/ double-prefix
-    # corruption that may exist in the DB — safe to run on every deploy.
     startCommand: >-
       python manage.py migrate --noinput &&
       python manage.py ensure_superuser &&
@@ -35,21 +25,33 @@ services:
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
 
-      # ---- Media / file storage ----
-      # Points to the persistent disk mounted at /var/data above.
-      # Django FileSystemStorage will read/write here across restarts.
-      - key: DJANGO_MEDIA_ROOT
-        value: /var/data/media
-      # File preview is served through the protected jobs:file-preview view,
-      # not exposed at a public /media/ URL, so keep this False.
-      - key: DJANGO_SERVE_MEDIA_FILES
-        value: "False"
-      # One-time fallback: if a DB record still points to the old ephemeral
-      # path, this lets views know where to look as a last resort.
-      - key: DJANGO_LEGACY_MEDIA_ROOT
-        value: /opt/render/project/src/media
+      # ---- Media / file storage (Cloudflare R2 or AWS S3) ----
+      # Set USE_S3=True to activate cloud storage (required for persistence).
+      - key: USE_S3
+        value: "True"
+      # R2 / S3 credentials — fill these in Render Dashboard > Environment.
+      # NEVER commit real credentials here.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      # For Cloudflare R2: set to "auto"
+      # For AWS S3: set to your bucket region e.g. "us-east-1"
+      - key: AWS_S3_REGION_NAME
+        value: "auto"
+      # Cloudflare R2 endpoint: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+      # Leave blank for standard AWS S3.
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      # Optional: R2 public domain (e.g. files.yourdomain.com or the
+      # R2.dev subdomain from the Cloudflare dashboard).
+      # Leave blank to disable direct public URL (files served via Django view).
+      - key: AWS_S3_CUSTOM_DOMAIN
+        sync: false
 
-      # ---- Database (set via Render dashboard, not committed here) ----
+      # ---- Database (set via Render dashboard) ----
       - key: DATABASE_URL
         sync: false
 
@@ -59,4 +61,4 @@ services:
       - key: DJANGO_SUPERUSER_EMAIL
         value: admin@example.com
       - key: DJANGO_SUPERUSER_PASSWORD
-        sync: false   # set this in Render dashboard — never commit passwords
+        sync: false
