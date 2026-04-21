@@ -58,6 +58,11 @@ def ensure_upload_prefix(storage_name, upload_dir):
 	if not prefix:
 		return normalized
 
+	# Repair duplicated prefixes from legacy records, e.g. "cvs/cvs/file.pdf".
+	doubled_prefix = f"{prefix}/{prefix}/"
+	while normalized.startswith(doubled_prefix):
+		normalized = f"{prefix}/{normalized[len(doubled_prefix):]}"
+
 	# Already has the correct prefix – do nothing.
 	if normalized.startswith(f"{prefix}/"):
 		return normalized

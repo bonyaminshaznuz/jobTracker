@@ -296,6 +296,14 @@ _UPLOAD_PREFIXES = [
 ]
 
 
+def _can_access_job_file(request_user, job):
+	"""Allow file access to owner, staff, or superuser users."""
+	return bool(
+		request_user.is_authenticated
+		and (job.user_id == request_user.id or request_user.is_staff or request_user.is_superuser)
+	)
+
+
 def _open_file_field(job, field_name):
 	"""
 	Generic helper to open any FileField on a JobApplication for reading.
@@ -373,7 +381,7 @@ def _get_content_type(filename):
 class JobFilePreviewView(LoginRequiredMixin, View):
 	def get(self, request, job_id):
 		job = get_object_or_404(JobApplication, pk=job_id)
-		if job.user_id != request.user.id:
+		if not _can_access_job_file(request.user, job):
 			raise PermissionDenied
 
 		if not job.cv_file:
@@ -395,7 +403,7 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 class JobFileDownloadView(LoginRequiredMixin, View):
 	def get(self, request, job_id):
 		job = get_object_or_404(JobApplication, pk=job_id)
-		if job.user_id != request.user.id:
+		if not _can_access_job_file(request.user, job):
 			raise PermissionDenied
 
 		if not job.cv_file:
@@ -422,7 +430,7 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 class JobCoverLetterPreviewView(LoginRequiredMixin, View):
 	def get(self, request, job_id):
 		job = get_object_or_404(JobApplication, pk=job_id)
-		if job.user_id != request.user.id:
+		if not _can_access_job_file(request.user, job):
 			raise PermissionDenied
 
 		if not job.cover_letter_file:
@@ -444,7 +452,7 @@ class JobCoverLetterPreviewView(LoginRequiredMixin, View):
 class JobCoverLetterDownloadView(LoginRequiredMixin, View):
 	def get(self, request, job_id):
 		job = get_object_or_404(JobApplication, pk=job_id)
-		if job.user_id != request.user.id:
+		if not _can_access_job_file(request.user, job):
 			raise PermissionDenied
 
 		if not job.cover_letter_file:
