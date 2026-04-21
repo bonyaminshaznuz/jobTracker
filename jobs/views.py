@@ -1,7 +1,10 @@
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.http import FileResponse
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
@@ -13,6 +16,8 @@ from pathlib import Path
 from interviews.models import InterviewRound
 from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
 from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity
+
+logger = logging.getLogger(__name__)
 
 
 class UserQuerysetMixin:
@@ -112,24 +117,30 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		previous_cover_letter = previous_job.cover_letter_file
 		previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
 
-		with transaction.atomic():
-			response = super().form_valid(form)
-			if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
-				_delete_file_after_commit(previous_cv)
-			if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
-				_delete_file_after_commit(previous_cover_letter)
-			reminder_date = form.cleaned_data.get("reminder_date")
-			if reminder_date:
-				Reminder.objects.update_or_create(
-					user=self.request.user,
-					job=self.object,
-					defaults={"remind_on": reminder_date, "completed": False},
-				)
-			else:
-				Reminder.objects.filter(user=self.request.user, job=self.object).delete()
-			log_activity(self.request.user, self.object, "Job application updated")
-			messages.success(self.request, "Job application updated.")
-		return response
+		try:
+			with transaction.atomic():
+				response = super().form_valid(form)
+				if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
+					_delete_file_after_commit(previous_cv)
+				if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
+					_delete_file_after_commit(previous_cover_letter)
+				reminder_date = form.cleaned_data.get("reminder_date")
+				if reminder_date:
+					Reminder.objects.update_or_create(
+						user=self.request.user,
+						job=self.object,
+						defaults={"remind_on": reminder_date, "completed": False},
+					)
+				else:
+					Reminder.objects.filter(user=self.request.user, job=self.object).delete()
+				log_activity(self.request.user, self.object, "Job application updated")
+				messages.success(self.request, "Job application updated.")
+			return response
+		except Exception:
+			logger.exception("Failed to update job application", extra={"job_id": self.object.pk, "user_id": self.request.user.pk})
+			form.add_error(None, "Could not update the job right now. Please try again.")
+			messages.error(self.request, "Could not update the job right now. Please try again.")
+			return self.form_invalid(form)
 
 	def get_context_data(self, **kwargs):
 		context = super().get_context_data(**kwargs)
@@ -273,22 +284,18 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
 			file_field = job.cv_file
-			empty_message = "No CV uploaded for this job."
-			missing_message = "CV file is missing from storage. Upload it again."
-		else:
+		elif file_type == "cover":
 			file_field = job.cover_letter_file
-			empty_message = "No cover letter uploaded for this job."
-			missing_message = "Cover letter file is missing from storage. Upload it again."
+		else:
+			raise Http404("Unsupported file type")
 
 		if not file_field:
-			messages.error(request, empty_message)
-			return redirect("jobs:detail", pk=job.pk)
+			raise Http404("File is not attached to this job")
 
 		try:
 			file_field.open("rb")
 		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-			messages.error(request, missing_message)
-			return redirect("jobs:detail", pk=job.pk)
+			raise Http404("File is missing from storage")
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
@@ -301,22 +308,18 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
 			file_field = job.cv_file
-			empty_message = "No CV uploaded for this job."
-			missing_message = "CV file is missing from storage. Upload it again."
-		else:
+		elif file_type == "cover":
 			file_field = job.cover_letter_file
-			empty_message = "No cover letter uploaded for this job."
-			missing_message = "Cover letter file is missing from storage. Upload it again."
+		else:
+			raise Http404("Unsupported file type")
 
 		if not file_field:
-			messages.error(request, empty_message)
-			return redirect("jobs:detail", pk=job.pk)
+			raise Http404("File is not attached to this job")
 
 		try:
 			file_field.open("rb")
 		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-			messages.error(request, missing_message)
-			return redirect("jobs:detail", pk=job.pk)
+			raise Http404("File is missing from storage")
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
