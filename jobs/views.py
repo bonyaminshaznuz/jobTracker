@@ -286,6 +286,79 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		return redirect("jobs:update", pk=job.pk)
 
 
+# ---------------------------------------------------------------------------
+# Shared helper for file views
+# ---------------------------------------------------------------------------
+
+_UPLOAD_PREFIXES = [
+	("cvs", "cv_file"),
+	("cover_letters", "cover_letter_file"),
+]
+
+
+def _open_cv_file(job):
+	"""
+	Open job.cv_file for reading and return the opened FieldFile.
+
+	If the stored path has a duplicated prefix (e.g. ``cvs/cvs/file.pdf``),
+	this function automatically:
+	  1. Strips the duplicate prefix to get the correct path.
+	  2. Checks whether the file exists at the corrected path.
+	  3. Updates the DB record so future requests are fast.
+	  4. Opens and returns the file.
+
+	Raises ``FileNotFoundError`` only when the file genuinely cannot be found
+	under any candidate path.
+	"""
+	file_field = job.cv_file
+	storage = file_field.storage
+	original_name = file_field.name or ""
+
+	# --- candidate paths to try in order ---
+	candidates = [original_name]
+
+	# Build de-duplicated alternatives for every known upload prefix.
+	for prefix, _ in _UPLOAD_PREFIXES:
+		doubled = f"{prefix}/{prefix}/"
+		if original_name.startswith(doubled):
+			candidates.append(prefix + "/" + original_name[len(doubled):])
+			break  # only one prefix can match
+
+	last_exc = None
+	for candidate in candidates:
+		try:
+			file_field.name = candidate
+			file_field.open("rb")
+
+			# Success — if we used a repaired path, persist it to the DB.
+			if candidate != original_name:
+				logger.info(
+					"[FILE-HEAL] Auto-repaired cv_file path for job #%s: %r -> %r",
+					job.pk, original_name, candidate,
+				)
+				JobApplication.objects.filter(pk=job.pk).update(cv_file=candidate)
+
+			return file_field
+
+		except (FileNotFoundError, OSError) as exc:
+			logger.warning(
+				"[FILE-HEAL] Could not open %r for job #%s: %s",
+				candidate, job.pk, exc,
+			)
+			last_exc = exc
+
+	# Restore original name so the model is not left in a dirty state.
+	file_field.name = original_name
+	raise FileNotFoundError(
+		f"CV not found for job #{job.pk}. Tried: {candidates}"
+	) from last_exc
+
+
+# ---------------------------------------------------------------------------
+# File preview / download views
+# ---------------------------------------------------------------------------
+
+
 class JobFilePreviewView(LoginRequiredMixin, View):
 	def get(self, request, job_id):
 		job = get_object_or_404(JobApplication, pk=job_id)
@@ -296,32 +369,12 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		# --- DIAGNOSTIC: log the exact path Django will try to open ---
-		_storage = job.cv_file.storage
-		_name = getattr(job.cv_file, 'name', '')
 		try:
-			_full_path = _storage.path(_name) if _name else '(empty name)'
-		except Exception as _e:
-			_full_path = f'(error resolving path: {_e})'
-		logger.info(
-			"[FILE-PREVIEW] job_id=%s | stored name=%r | storage location=%r | resolved path=%r",
-			job.pk, _name,
-			getattr(_storage, 'location', 'N/A'),
-			_full_path,
-		)
-		# --- END DIAGNOSTIC ---
-
-		try:
-			job.cv_file.open("rb")
-		except (FileNotFoundError, OSError) as exc:
-			logger.warning(
-				"[FILE-PREVIEW] FAILED to open file (job_id=%s, name=%r, path=%r): %s",
-				job.pk, _name, _full_path, exc,
-			)
+			_open_cv_file(job)
+		except FileNotFoundError:
 			messages.error(
 				request,
-				f"The CV file could not be found on the server (looked at: {_full_path}). "
-				"Please re-upload it.",
+				"The CV file could not be found on the server. Please re-upload it.",
 			)
 			return redirect("jobs:detail", pk=job.pk)
 
@@ -342,19 +395,11 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		try:
-			job.cv_file.open("rb")
-		except (FileNotFoundError, OSError):
-			logger.warning(
-				"CV file missing from storage for download (job_id=%s, name=%s). "
-				"This can happen after a Render restart if the persistent disk "
-				"was not mounted correctly.",
-				job.pk,
-				getattr(job.cv_file, 'name', ''),
-			)
+			_open_cv_file(job)
+		except FileNotFoundError:
 			messages.error(
 				request,
-				"The CV file could not be found on the server. "
-				"Please re-upload it.",
+				"The CV file could not be found on the server. Please re-upload it.",
 			)
 			return redirect("jobs:detail", pk=job.pk)
 
