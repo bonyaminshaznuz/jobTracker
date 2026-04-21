@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.db import models
 
 User = get_user_model()
@@ -119,6 +119,24 @@ class JobApplication(models.Model):
 		if not self.cv_file:
 			return ""
 		return self.cv_file.name.rsplit("/", 1)[-1]
+
+	@property
+	def cv_file_url(self):
+		if not self.cv_file:
+			return ""
+		try:
+			return self.cv_file.url
+		except (ValueError, OSError, SuspiciousFileOperation):
+			return ""
+
+	@property
+	def cover_letter_file_url(self):
+		if not self.cover_letter_file:
+			return ""
+		try:
+			return self.cover_letter_file.url
+		except (ValueError, OSError, SuspiciousFileOperation):
+			return ""
 
 
 class Note(models.Model):

@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ValidationError
+from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
@@ -22,7 +22,16 @@ def _delete_file_after_commit(file_field):
 		return
 	storage = file_field.storage
 	file_name = file_field.name
-	transaction.on_commit(lambda storage=storage, file_name=file_name: storage.delete(file_name) if storage.exists(file_name) else None)
+
+	def _delete_if_exists(storage_obj, name):
+		try:
+			if storage_obj.exists(name):
+				storage_obj.delete(name)
+		except (OSError, SuspiciousFileOperation):
+			# Invalid legacy file paths should not break request lifecycle.
+			return
+
+	transaction.on_commit(lambda storage=storage, file_name=file_name: _delete_if_exists(storage, file_name))
 
 
 class JobListView(LoginRequiredMixin, ListView):
