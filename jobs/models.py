@@ -6,7 +6,14 @@ User = get_user_model()
 
 
 def validate_upload_size(file_obj):
-	if file_obj.size > 5 * 1024 * 1024:
+	try:
+		size = file_obj.size
+	except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+		# Legacy rows may point to files that no longer exist in storage.
+		# Do not crash unrelated form submissions.
+		return
+
+	if size > 5 * 1024 * 1024:
 		raise ValidationError("File size must be less than 5MB.")
 
 

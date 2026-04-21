@@ -215,20 +215,60 @@ static_dir = BASE_DIR / 'static'
 STATICFILES_DIRS = [static_dir] if static_dir.exists() else []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+USE_S3 = env_bool('USE_S3', False)
+
 if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = os.getenv('DJANGO_MEDIA_URL', '/media/')
-if not MEDIA_URL.endswith('/'):
-    MEDIA_URL = f"{MEDIA_URL}/"
+if USE_S3:
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
+    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', '')
+    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN', '').strip()
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_LOCATION = os.getenv('AWS_MEDIA_LOCATION', 'media').strip('/')
 
-media_root_env = os.getenv('DJANGO_MEDIA_ROOT', '').strip() or os.getenv('MEDIA_ROOT', '').strip()
-MEDIA_ROOT = Path(media_root_env).expanduser() if media_root_env else (BASE_DIR / 'media')
-MEDIA_ROOT = MEDIA_ROOT.resolve()
-MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+            'OPTIONS': {
+                'access_key': AWS_ACCESS_KEY_ID,
+                'secret_key': AWS_SECRET_ACCESS_KEY,
+                'bucket_name': AWS_STORAGE_BUCKET_NAME,
+                'region_name': AWS_S3_REGION_NAME,
+                'default_acl': AWS_DEFAULT_ACL,
+                'querystring_auth': AWS_QUERYSTRING_AUTH,
+                'file_overwrite': AWS_S3_FILE_OVERWRITE,
+                'location': AWS_LOCATION,
+            },
+        },
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        },
+    }
 
-# On platforms without custom Nginx (e.g. Render), enable Django media serving via URLconf.
-SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA_FILES', bool(render_external_hostname))
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    else:
+        MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/{AWS_LOCATION}/"
+
+    MEDIA_ROOT = BASE_DIR / 'media'
+    SERVE_MEDIA_FILES = False
+else:
+    MEDIA_URL = os.getenv('DJANGO_MEDIA_URL', '/media/')
+    if not MEDIA_URL.endswith('/'):
+        MEDIA_URL = f"{MEDIA_URL}/"
+
+    media_root_env = os.getenv('DJANGO_MEDIA_ROOT', '').strip() or os.getenv('MEDIA_ROOT', '').strip()
+    MEDIA_ROOT = Path(media_root_env).expanduser() if media_root_env else (BASE_DIR / 'media')
+    MEDIA_ROOT = MEDIA_ROOT.resolve()
+    MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+    # On platforms without custom Nginx (e.g. Render), enable Django media serving via URLconf.
+    SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA_FILES', bool(render_external_hostname))
 
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

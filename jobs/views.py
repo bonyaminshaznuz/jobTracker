@@ -4,7 +4,6 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.http import FileResponse
-from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
@@ -284,18 +283,23 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
 			file_field = job.cv_file
+			label = "CV"
 		elif file_type == "cover":
 			file_field = job.cover_letter_file
+			label = "cover letter"
 		else:
-			raise Http404("Unsupported file type")
+			messages.error(request, "Invalid file type requested.")
+			return redirect("jobs:detail", pk=job.pk)
 
 		if not file_field:
-			raise Http404("File is not attached to this job")
+			messages.error(request, f"No {label} attached to this job. Please upload it first.")
+			return redirect("jobs:detail", pk=job.pk)
 
 		try:
 			file_field.open("rb")
 		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-			raise Http404("File is missing from storage")
+			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
+			return redirect("jobs:update", pk=job.pk)
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
@@ -308,18 +312,23 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
 			file_field = job.cv_file
+			label = "CV"
 		elif file_type == "cover":
 			file_field = job.cover_letter_file
+			label = "cover letter"
 		else:
-			raise Http404("Unsupported file type")
+			messages.error(request, "Invalid file type requested.")
+			return redirect("jobs:detail", pk=job.pk)
 
 		if not file_field:
-			raise Http404("File is not attached to this job")
+			messages.error(request, f"No {label} attached to this job. Please upload it first.")
+			return redirect("jobs:detail", pk=job.pk)
 
 		try:
 			file_field.open("rb")
 		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-			raise Http404("File is missing from storage")
+			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
+			return redirect("jobs:update", pk=job.pk)
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
