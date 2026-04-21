@@ -5,6 +5,8 @@ from jobs.views import (
     CategoryDeleteView,
     CategoryListView,
     CategoryUpdateView,
+    JobCoverLetterDownloadView,
+    JobCoverLetterPreviewView,
     JobCreateView,
     JobDeleteView,
     JobDetailView,
@@ -26,8 +28,12 @@ urlpatterns = [
     path("<int:pk>/", JobDetailView.as_view(), name="detail"),
     path("<int:pk>/edit/", JobUpdateView.as_view(), name="update"),
     path("<int:pk>/delete/", JobDeleteView.as_view(), name="delete"),
+    # CV
     path("<int:job_id>/files/preview/", JobFilePreviewView.as_view(), name="file-preview"),
     path("<int:job_id>/files/download/", JobFileDownloadView.as_view(), name="file-download"),
+    # Cover letter
+    path("<int:job_id>/cover-letter/preview/", JobCoverLetterPreviewView.as_view(), name="cover-letter-preview"),
+    path("<int:job_id>/cover-letter/download/", JobCoverLetterDownloadView.as_view(), name="cover-letter-download"),
     path("<int:job_pk>/status/update/", JobStatusUpdateView.as_view(), name="status-update"),
     path("<int:job_pk>/cv/upload/", JobInlineCVUploadView.as_view(), name="inline-cv-upload"),
     path("<int:job_pk>/notes/add/", NoteCreateView.as_view(), name="note-add"),

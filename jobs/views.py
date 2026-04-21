@@ -296,33 +296,32 @@ _UPLOAD_PREFIXES = [
 ]
 
 
-def _open_cv_file(job):
+def _open_file_field(job, field_name):
 	"""
-	Open job.cv_file for reading and return the opened FieldFile.
+	Generic helper to open any FileField on a JobApplication for reading.
 
-	If the stored path has a duplicated prefix (e.g. ``cvs/cvs/file.pdf``),
-	this function automatically:
-	  1. Strips the duplicate prefix to get the correct path.
-	  2. Checks whether the file exists at the corrected path.
-	  3. Updates the DB record so future requests are fast.
-	  4. Opens and returns the file.
+	Handles self-healing of duplicated upload-path prefixes automatically
+	(e.g. ``cvs/cvs/file.pdf`` → ``cvs/file.pdf``) and persists the
+	corrected path to the DB so future requests are fast.
 
-	Raises ``FileNotFoundError`` only when the file genuinely cannot be found
-	under any candidate path.
+	Args:
+	    job: JobApplication instance
+	    field_name: "cv_file" or "cover_letter_file"
+
+	Raises FileNotFoundError if the file cannot be found under any candidate path.
 	"""
-	file_field = job.cv_file
-	storage = file_field.storage
+	file_field = getattr(job, field_name)
 	original_name = file_field.name or ""
 
-	# --- candidate paths to try in order ---
 	candidates = [original_name]
 
-	# Build de-duplicated alternatives for every known upload prefix.
-	for prefix, _ in _UPLOAD_PREFIXES:
-		doubled = f"{prefix}/{prefix}/"
-		if original_name.startswith(doubled):
-			candidates.append(prefix + "/" + original_name[len(doubled):])
-			break  # only one prefix can match
+	# Build de-duplicated alternative if a doubled prefix is detected.
+	for prefix, fname in _UPLOAD_PREFIXES:
+		if fname == field_name:
+			doubled = f"{prefix}/{prefix}/"
+			if original_name.startswith(doubled):
+				candidates.append(prefix + "/" + original_name[len(doubled):])
+			break
 
 	last_exc = None
 	for candidate in candidates:
@@ -330,32 +329,44 @@ def _open_cv_file(job):
 			file_field.name = candidate
 			file_field.open("rb")
 
-			# Success — if we used a repaired path, persist it to the DB.
+			# Success — persist the healed path if it changed.
 			if candidate != original_name:
 				logger.info(
-					"[FILE-HEAL] Auto-repaired cv_file path for job #%s: %r -> %r",
-					job.pk, original_name, candidate,
+					"[FILE-HEAL] Auto-repaired %s for job #%s: %r -> %r",
+					field_name, job.pk, original_name, candidate,
 				)
-				JobApplication.objects.filter(pk=job.pk).update(cv_file=candidate)
+				JobApplication.objects.filter(pk=job.pk).update(**{field_name: candidate})
 
 			return file_field
 
 		except (FileNotFoundError, OSError) as exc:
 			logger.warning(
-				"[FILE-HEAL] Could not open %r for job #%s: %s",
-				candidate, job.pk, exc,
+				"[FILE-HEAL] Could not open %r (%s) for job #%s: %s",
+				candidate, field_name, job.pk, exc,
 			)
 			last_exc = exc
 
 	# Restore original name so the model is not left in a dirty state.
 	file_field.name = original_name
 	raise FileNotFoundError(
-		f"CV not found for job #{job.pk}. Tried: {candidates}"
+		f"{field_name} not found for job #{job.pk}. Tried: {candidates}"
 	) from last_exc
 
 
+def _get_content_type(filename):
+	"""Return the MIME type based on file extension."""
+	name = (filename or "").lower()
+	if name.endswith(".pdf"):
+		return "application/pdf"
+	if name.endswith(".docx"):
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	if name.endswith(".doc"):
+		return "application/msword"
+	return "application/octet-stream"
+
+
 # ---------------------------------------------------------------------------
-# File preview / download views
+# CV preview / download views
 # ---------------------------------------------------------------------------
 
 
@@ -370,16 +381,13 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		try:
-			_open_cv_file(job)
+			_open_file_field(job, "cv_file")
 		except FileNotFoundError:
-			messages.error(
-				request,
-				"The CV file could not be found on the server. Please re-upload it.",
-			)
+			messages.error(request, "The CV file could not be found on the server. Please re-upload it.")
 			return redirect("jobs:detail", pk=job.pk)
 
 		filename = job.cv_filename or "cv.pdf"
-		response = FileResponse(job.cv_file.file, content_type="application/pdf")
+		response = FileResponse(job.cv_file.file, content_type=_get_content_type(filename))
 		response["Content-Disposition"] = f'inline; filename="{filename}"'
 		return response
 
@@ -395,16 +403,62 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		try:
-			_open_cv_file(job)
+			_open_file_field(job, "cv_file")
 		except FileNotFoundError:
-			messages.error(
-				request,
-				"The CV file could not be found on the server. Please re-upload it.",
-			)
+			messages.error(request, "The CV file could not be found on the server. Please re-upload it.")
 			return redirect("jobs:detail", pk=job.pk)
 
 		filename = job.cv_filename or "cv.pdf"
-		response = FileResponse(job.cv_file.file, content_type="application/pdf")
+		response = FileResponse(job.cv_file.file, content_type=_get_content_type(filename))
+		response["Content-Disposition"] = f'attachment; filename="{filename}"'
+		return response
+
+
+# ---------------------------------------------------------------------------
+# Cover letter preview / download views
+# ---------------------------------------------------------------------------
+
+
+class JobCoverLetterPreviewView(LoginRequiredMixin, View):
+	def get(self, request, job_id):
+		job = get_object_or_404(JobApplication, pk=job_id)
+		if job.user_id != request.user.id:
+			raise PermissionDenied
+
+		if not job.cover_letter_file:
+			messages.error(request, "No cover letter attached to this job.")
+			return redirect("jobs:detail", pk=job.pk)
+
+		try:
+			_open_file_field(job, "cover_letter_file")
+		except FileNotFoundError:
+			messages.error(request, "The cover letter file could not be found on the server. Please re-upload it.")
+			return redirect("jobs:detail", pk=job.pk)
+
+		filename = job.cover_letter_filename or "cover_letter.pdf"
+		response = FileResponse(job.cover_letter_file.file, content_type=_get_content_type(filename))
+		response["Content-Disposition"] = f'inline; filename="{filename}"'
+		return response
+
+
+class JobCoverLetterDownloadView(LoginRequiredMixin, View):
+	def get(self, request, job_id):
+		job = get_object_or_404(JobApplication, pk=job_id)
+		if job.user_id != request.user.id:
+			raise PermissionDenied
+
+		if not job.cover_letter_file:
+			messages.error(request, "No cover letter attached to this job.")
+			return redirect("jobs:detail", pk=job.pk)
+
+		try:
+			_open_file_field(job, "cover_letter_file")
+		except FileNotFoundError:
+			messages.error(request, "The cover letter file could not be found on the server. Please re-upload it.")
+			return redirect("jobs:detail", pk=job.pk)
+
+		filename = job.cover_letter_filename or "cover_letter.pdf"
+		response = FileResponse(job.cover_letter_file.file, content_type=_get_content_type(filename))
 		response["Content-Disposition"] = f'attachment; filename="{filename}"'
 		return response
 

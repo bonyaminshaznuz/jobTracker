@@ -215,8 +215,20 @@ class JobApplication(models.Model):
 		return reverse("jobs:file-preview", kwargs={"job_id": self.pk})
 
 	@property
+	def is_cover_letter_pdf(self):
+		return bool(self.cover_letter_file and self.cover_letter_file.name.lower().endswith(".pdf"))
+
+	@property
+	def cover_letter_filename(self):
+		if not self.cover_letter_file:
+			return ""
+		return self.cover_letter_file.name.rsplit("/", 1)[-1]
+
+	@property
 	def cover_letter_file_url(self):
-		return ""
+		if not self.cover_letter_file or not self.pk:
+			return ""
+		return reverse("jobs:cover-letter-preview", kwargs={"job_id": self.pk})
 
 
 class Note(models.Model):
