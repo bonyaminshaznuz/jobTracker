@@ -29,10 +29,20 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='jobapplication',
-            name='cv_file',
-            field=models.FileField(blank=True, null=True, upload_to='cvs/', validators=[jobs.models.validate_upload_extension, jobs.models.validate_upload_size]),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE jobs_jobapplication ADD COLUMN IF NOT EXISTS cv_file varchar(100)",
+                    reverse_sql="ALTER TABLE jobs_jobapplication DROP COLUMN IF EXISTS cv_file",
+                ),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='jobapplication',
+                    name='cv_file',
+                    field=models.FileField(blank=True, null=True, upload_to='cvs/', validators=[jobs.models.validate_upload_extension, jobs.models.validate_upload_size]),
+                ),
+            ],
         ),
         migrations.RunPython(copy_cv_file_to_job, copy_cv_file_to_job_reverse),
         migrations.RemoveConstraint(

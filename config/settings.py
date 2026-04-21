@@ -211,7 +211,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+static_dir = BASE_DIR / 'static'
+STATICFILES_DIRS = [static_dir] if static_dir.exists() else []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 if not DEBUG:
@@ -221,7 +222,7 @@ MEDIA_URL = os.getenv('DJANGO_MEDIA_URL', '/media/')
 if not MEDIA_URL.endswith('/'):
     MEDIA_URL = f"{MEDIA_URL}/"
 
-media_root_env = os.getenv('DJANGO_MEDIA_ROOT', '').strip()
+media_root_env = os.getenv('DJANGO_MEDIA_ROOT', '').strip() or os.getenv('MEDIA_ROOT', '').strip()
 MEDIA_ROOT = Path(media_root_env).expanduser() if media_root_env else (BASE_DIR / 'media')
 MEDIA_ROOT = MEDIA_ROOT.resolve()
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)

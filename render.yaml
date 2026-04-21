@@ -19,7 +19,7 @@ services:
         value: ".onrender.com"
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
-      - key: MEDIA_ROOT
+      - key: DJANGO_MEDIA_ROOT
         value: /var/data/media
       - key: DATABASE_URL
         sync: false
