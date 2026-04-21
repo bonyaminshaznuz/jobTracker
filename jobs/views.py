@@ -296,19 +296,31 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
+		# --- DIAGNOSTIC: log the exact path Django will try to open ---
+		_storage = job.cv_file.storage
+		_name = getattr(job.cv_file, 'name', '')
+		try:
+			_full_path = _storage.path(_name) if _name else '(empty name)'
+		except Exception as _e:
+			_full_path = f'(error resolving path: {_e})'
+		logger.info(
+			"[FILE-PREVIEW] job_id=%s | stored name=%r | storage location=%r | resolved path=%r",
+			job.pk, _name,
+			getattr(_storage, 'location', 'N/A'),
+			_full_path,
+		)
+		# --- END DIAGNOSTIC ---
+
 		try:
 			job.cv_file.open("rb")
-		except (FileNotFoundError, OSError):
+		except (FileNotFoundError, OSError) as exc:
 			logger.warning(
-				"CV file missing from storage (job_id=%s, name=%s). "
-				"This can happen after a Render restart if the persistent disk "
-				"was not mounted correctly.",
-				job.pk,
-				getattr(job.cv_file, 'name', ''),
+				"[FILE-PREVIEW] FAILED to open file (job_id=%s, name=%r, path=%r): %s",
+				job.pk, _name, _full_path, exc,
 			)
 			messages.error(
 				request,
-				"The CV file could not be found on the server. "
+				f"The CV file could not be found on the server (looked at: {_full_path}). "
 				"Please re-upload it.",
 			)
 			return redirect("jobs:detail", pk=job.pk)
