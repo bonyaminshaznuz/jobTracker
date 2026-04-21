@@ -1,11 +1,14 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
+from mimetypes import guess_type
+from pathlib import Path
 
 from interviews.models import InterviewRound
 from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
@@ -27,7 +30,7 @@ def _delete_file_after_commit(file_field):
 		try:
 			if storage_obj.exists(name):
 				storage_obj.delete(name)
-		except (OSError, SuspiciousFileOperation):
+		except (OSError, SuspiciousFileOperation, ValueError):
 			# Invalid legacy file paths should not break request lifecycle.
 			return
 
@@ -263,6 +266,62 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		else:
 			messages.error(request, "No file selected.")
 		return redirect("jobs:update", pk=job.pk)
+
+
+class JobFilePreviewView(LoginRequiredMixin, View):
+	def get(self, request, pk, file_type):
+		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
+		if file_type == "cv":
+			file_field = job.cv_file
+			empty_message = "No CV uploaded for this job."
+			missing_message = "CV file is missing from storage. Upload it again."
+		else:
+			file_field = job.cover_letter_file
+			empty_message = "No cover letter uploaded for this job."
+			missing_message = "Cover letter file is missing from storage. Upload it again."
+
+		if not file_field:
+			messages.error(request, empty_message)
+			return redirect("jobs:detail", pk=job.pk)
+
+		try:
+			file_field.open("rb")
+		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+			messages.error(request, missing_message)
+			return redirect("jobs:detail", pk=job.pk)
+
+		content_type, _ = guess_type(file_field.name)
+		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
+		response["Content-Disposition"] = f'inline; filename="{Path(file_field.name).name}"'
+		return response
+
+
+class JobFileDownloadView(LoginRequiredMixin, View):
+	def get(self, request, pk, file_type):
+		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
+		if file_type == "cv":
+			file_field = job.cv_file
+			empty_message = "No CV uploaded for this job."
+			missing_message = "CV file is missing from storage. Upload it again."
+		else:
+			file_field = job.cover_letter_file
+			empty_message = "No cover letter uploaded for this job."
+			missing_message = "Cover letter file is missing from storage. Upload it again."
+
+		if not file_field:
+			messages.error(request, empty_message)
+			return redirect("jobs:detail", pk=job.pk)
+
+		try:
+			file_field.open("rb")
+		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+			messages.error(request, missing_message)
+			return redirect("jobs:detail", pk=job.pk)
+
+		content_type, _ = guess_type(file_field.name)
+		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
+		response["Content-Disposition"] = f'attachment; filename="{Path(file_field.name).name}"'
+		return response
 
 
 class NoteCreateView(LoginRequiredMixin, View):

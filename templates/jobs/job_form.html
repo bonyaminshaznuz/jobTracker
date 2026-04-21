@@ -62,7 +62,7 @@
                         <div class="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-600">
                             <p class="text-xs uppercase tracking-wide text-slate-500">Current Cover Letter</p>
                             {% if view.object.cover_letter_file_url %}
-                                <a class="mt-1 inline-flex font-medium text-blue-600 hover:text-blue-700" href="{{ view.object.cover_letter_file_url }}" target="_blank" rel="noreferrer">Open attached file</a>
+                                <a class="mt-1 inline-flex font-medium text-blue-600 hover:text-blue-700" href="{% url 'jobs:file-preview' view.object.pk 'cover' %}" target="_blank" rel="noreferrer">Open attached file</a>
                             {% else %}
                                 <p class="mt-1 text-amber-700">Stored cover-letter path is invalid. Upload again.</p>
                             {% endif %}
