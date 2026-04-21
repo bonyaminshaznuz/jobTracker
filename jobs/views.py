@@ -344,8 +344,12 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		if not _open_file_field_with_recovery(file_field):
-			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
+			# Fallback: if direct media URL resolves, use it instead of false-negative storage checks.
+			try:
+				return redirect(file_field.url)
+			except (ValueError, OSError, SuspiciousFileOperation):
+				messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
+				return redirect("jobs:update", pk=job.pk)
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
@@ -371,8 +375,12 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		if not _open_file_field_with_recovery(file_field):
-			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
+			# Fallback: redirect to direct media URL when backend file open check is unreliable.
+			try:
+				return redirect(file_field.url)
+			except (ValueError, OSError, SuspiciousFileOperation):
+				messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
+				return redirect("jobs:update", pk=job.pk)
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
