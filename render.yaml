@@ -2,19 +2,30 @@ services:
   - type: web
     name: jobtracker
     env: python
-    # IMPORTANT: Persistent disks require at minimum the "starter" plan.
-    # The free plan silently ignores the disk: block, so all uploaded files
-    # are lost on every restart/redeploy. Upgrade to starter (or higher) to
-    # keep media files across deployments.
+    # -----------------------------------------------------------------------
+    # PLAN NOTE:
+    # "free" plan does NOT support persistent disks — the disk: block below
+    # is silently ignored on free.  Use "starter" ($7/mo) or higher so that
+    # uploaded files survive restarts and redeploys.
+    # -----------------------------------------------------------------------
     plan: starter
     disk:
-      name: media
+      name: media-disk
       mountPath: /var/data
       sizeGB: 1
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate --noinput && python manage.py ensure_superuser && gunicorn config.wsgi:application --log-file -
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput
+    # repair_file_paths --fix auto-corrects any cvs/cvs/ double-prefix
+    # corruption that may exist in the DB — safe to run on every deploy.
+    startCommand: >-
+      python manage.py migrate --noinput &&
+      python manage.py ensure_superuser &&
+      python manage.py repair_file_paths --fix &&
+      gunicorn config.wsgi:application --workers 2 --log-file -
     autoDeploy: true
     envVars:
+      # ---- Django core ----
       - key: DJANGO_DEBUG
         value: "False"
       - key: DJANGO_SECRET_KEY
@@ -23,22 +34,29 @@ services:
         value: ".onrender.com"
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
-      # Files are stored on the persistent disk mounted at /var/data.
+
+      # ---- Media / file storage ----
+      # Points to the persistent disk mounted at /var/data above.
+      # Django FileSystemStorage will read/write here across restarts.
       - key: DJANGO_MEDIA_ROOT
         value: /var/data/media
-      # Media is served through the protected Django view (jobs:file-preview),
-      # NOT via direct URL, so this stays False.
+      # File preview is served through the protected jobs:file-preview view,
+      # not exposed at a public /media/ URL, so keep this False.
       - key: DJANGO_SERVE_MEDIA_FILES
         value: "False"
-      # Legacy path used only for one-time migration of old files that were
-      # stored on the ephemeral filesystem before the disk was attached.
+      # One-time fallback: if a DB record still points to the old ephemeral
+      # path, this lets views know where to look as a last resort.
       - key: DJANGO_LEGACY_MEDIA_ROOT
         value: /opt/render/project/src/media
+
+      # ---- Database (set via Render dashboard, not committed here) ----
       - key: DATABASE_URL
         sync: false
+
+      # ---- Bootstrap superuser ----
       - key: DJANGO_SUPERUSER_USERNAME
         value: admin
       - key: DJANGO_SUPERUSER_EMAIL
         value: admin@example.com
       - key: DJANGO_SUPERUSER_PASSWORD
-        value: Admin12345!
+        sync: false   # set this in Render dashboard — never commit passwords
