@@ -217,8 +217,13 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 if not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = Path(os.getenv('MEDIA_ROOT') or (BASE_DIR / 'media'))
+MEDIA_URL = os.getenv('DJANGO_MEDIA_URL', '/media/')
+if not MEDIA_URL.endswith('/'):
+    MEDIA_URL = f"{MEDIA_URL}/"
+
+media_root_env = os.getenv('DJANGO_MEDIA_ROOT', '').strip()
+MEDIA_ROOT = Path(media_root_env).expanduser() if media_root_env else (BASE_DIR / 'media')
+MEDIA_ROOT = MEDIA_ROOT.resolve()
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 if not DEBUG:

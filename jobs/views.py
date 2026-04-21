@@ -1,19 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
-from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
-from mimetypes import guess_type
-from pathlib import Path
-from uuid import uuid4
 
 from interviews.models import InterviewRound
-from jobs.forms import CVForm, CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
-from jobs.models import ActivityLog, CV, Category, JobApplication, Note, Reminder, log_activity
+from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
+from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity
 
 
 class UserQuerysetMixin:
@@ -29,12 +25,6 @@ def _delete_file_after_commit(file_field):
 	transaction.on_commit(lambda storage=storage, file_name=file_name: storage.delete(file_name) if storage.exists(file_name) else None)
 
 
-def build_uploaded_cv(user, file_obj):
-	name = Path(file_obj.name).stem.strip() or "CV"
-	version = f"upload-{uuid4().hex[:8]}"
-	return CV.objects.create(user=user, name=name[:150], version=version[:20], file=file_obj)
-
-
 class JobListView(LoginRequiredMixin, ListView):
 	model = JobApplication
 	template_name = "jobs/job_list.html"
@@ -44,7 +34,7 @@ class JobListView(LoginRequiredMixin, ListView):
 	def get_queryset(self):
 		queryset = (
 			JobApplication.objects.filter(user=self.request.user)
-			.select_related("category", "cv")
+			.select_related("category")
 			.order_by("-date_applied", "-created_at")
 		)
 		self.filter_form = JobFilterForm(self.request.GET or None, user=self.request.user)
@@ -68,20 +58,7 @@ class JobCreateView(LoginRequiredMixin, CreateView):
 
 	def form_valid(self, form):
 		form.instance.user = self.request.user
-
-		new_cover_letter_file = form.cleaned_data.get("new_cover_letter_file")
-		new_cv_file = form.cleaned_data.get("new_cv_file")
-
-		if new_cover_letter_file:
-			form.instance.cover_letter_file = new_cover_letter_file
-
 		response = super().form_valid(form)
-		if new_cv_file:
-			cv = build_uploaded_cv(self.request.user, new_cv_file)
-			self.object.cv = cv
-			self.object.save(update_fields=["cv", "updated_at"])
-		if new_cover_letter_file:
-			self.object.save(update_fields=["cover_letter_file", "updated_at"])
 		self._upsert_reminder(form.cleaned_data.get("reminder_date"))
 		log_activity(self.request.user, self.object, f"Status updated: {self.object.get_status_display()}")
 		messages.success(self.request, "Job application added.")
@@ -117,26 +94,17 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		return initial
 
 	def form_valid(self, form):
-		new_cv_file = form.cleaned_data.get("new_cv_file")
-		new_cover_letter_file = form.cleaned_data.get("new_cover_letter_file")
-		previous_cover_letter = self.get_object().cover_letter_file
+		previous_job = self.get_object()
+		previous_cv = previous_job.cv_file
+		previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+		previous_cover_letter = previous_job.cover_letter_file
 		previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
 
 		with transaction.atomic():
 			response = super().form_valid(form)
-			if new_cv_file:
-				cv = build_uploaded_cv(self.request.user, new_cv_file)
-				self.object.cv = cv
-			if new_cover_letter_file:
-				self.object.cover_letter_file = new_cover_letter_file
-			update_fields = ["updated_at"]
-			if new_cv_file:
-				update_fields.append("cv")
-			if new_cover_letter_file:
-				update_fields.append("cover_letter_file")
-			if len(update_fields) > 1:
-				self.object.save(update_fields=update_fields)
-			if new_cover_letter_file and previous_cover_letter_name and previous_cover_letter_name != self.object.cover_letter_file.name:
+			if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
+				_delete_file_after_commit(previous_cv)
+			if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
 				_delete_file_after_commit(previous_cover_letter)
 			reminder_date = form.cleaned_data.get("reminder_date")
 			if reminder_date:
@@ -241,9 +209,20 @@ class JobStatusUpdateView(LoginRequiredMixin, View):
 class JobInlineCVUploadView(LoginRequiredMixin, View):
 	def post(self, request, job_pk):
 		job = get_object_or_404(JobApplication, pk=job_pk, user=request.user)
-		uploaded_cv_file = request.FILES.get("file")
+		uploaded_cv_file = request.FILES.get("cv_file") or request.FILES.get("file")
 		uploaded_cover_file = request.FILES.get("cover_letter_file")
-		selected_cv_id = request.POST.get("cv")
+
+		if uploaded_cv_file and not uploaded_cover_file:
+			previous_cv = job.cv_file
+			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+			with transaction.atomic():
+				job.cv_file = uploaded_cv_file
+				job.save(update_fields=["cv_file", "updated_at"])
+				if previous_cv_name and previous_cv_name != job.cv_file.name:
+					_delete_file_after_commit(previous_cv)
+			log_activity(request.user, job, "CV uploaded")
+			messages.success(request, "CV uploaded and attached to the job.")
+			return redirect("jobs:update", pk=job.pk)
 
 		if uploaded_cover_file and not uploaded_cv_file:
 			previous_cover_letter = job.cover_letter_file
@@ -257,26 +236,23 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 			messages.success(request, "Cover letter uploaded and attached to the job.")
 			return redirect("jobs:update", pk=job.pk)
 
-		form = CVForm(request.POST, request.FILES, user=request.user)
-		if form.is_valid():
+		if uploaded_cv_file and uploaded_cover_file:
+			previous_cv = job.cv_file
+			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
 			previous_cover_letter = job.cover_letter_file
 			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
 			with transaction.atomic():
-				cv = form.save(commit=False)
-				cv.user = request.user
-				cv.save()
-				job.cv = cv
-				if uploaded_cover_file:
-					job.cover_letter_file = uploaded_cover_file
-					job.save(update_fields=["cv", "cover_letter_file", "updated_at"])
-					if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
-						_delete_file_after_commit(previous_cover_letter)
-				else:
-					job.save(update_fields=["cv", "updated_at"])
-			log_activity(request.user, job, f"CV attached: {cv.name} ({cv.version})")
-			messages.success(request, "CV uploaded and attached to the job.")
+				job.cv_file = uploaded_cv_file
+				job.cover_letter_file = uploaded_cover_file
+				job.save(update_fields=["cv_file", "cover_letter_file", "updated_at"])
+				if previous_cv_name and previous_cv_name != job.cv_file.name:
+					_delete_file_after_commit(previous_cv)
+				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
+					_delete_file_after_commit(previous_cover_letter)
+			log_activity(request.user, job, "CV and cover letter uploaded")
+			messages.success(request, "CV and cover letter uploaded and attached to the job.")
 		else:
-			messages.error(request, "CV upload failed. Please check the form.")
+			messages.error(request, "No file selected.")
 		return redirect("jobs:update", pk=job.pk)
 
 
@@ -352,108 +328,6 @@ class CategoryDeleteView(LoginRequiredMixin, UserQuerysetMixin, DeleteView):
 		else:
 			messages.success(request, "Category deleted.")
 		return redirect(self.success_url)
-
-
-class CVListView(LoginRequiredMixin, ListView):
-	model = CV
-	template_name = "jobs/cv_list.html"
-	context_object_name = "cvs"
-
-	def get_queryset(self):
-		return CV.objects.filter(user=self.request.user)
-
-
-class CVCreateView(LoginRequiredMixin, CreateView):
-	model = CV
-	form_class = CVForm
-	template_name = "jobs/cv_form.html"
-	success_url = reverse_lazy("jobs:cv-list")
-
-	def get_form_kwargs(self):
-		kwargs = super().get_form_kwargs()
-		kwargs["user"] = self.request.user
-		return kwargs
-
-	def form_valid(self, form):
-		form.instance.user = self.request.user
-		messages.success(self.request, "CV uploaded.")
-		return super().form_valid(form)
-
-
-class CVUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
-	model = CV
-	form_class = CVForm
-	template_name = "jobs/cv_form.html"
-	success_url = reverse_lazy("jobs:cv-list")
-
-	def get_form_kwargs(self):
-		kwargs = super().get_form_kwargs()
-		kwargs["user"] = self.request.user
-		return kwargs
-
-	def form_valid(self, form):
-		messages.success(self.request, "CV updated.")
-		return super().form_valid(form)
-
-
-class CVDeleteView(LoginRequiredMixin, UserQuerysetMixin, DeleteView):
-	model = CV
-	template_name = "jobs/cv_confirm_delete.html"
-	success_url = reverse_lazy("jobs:cv-list")
-
-	def form_valid(self, form):
-		messages.success(self.request, "CV deleted.")
-		return super().form_valid(form)
-
-
-class CVPreviewView(LoginRequiredMixin, UserQuerysetMixin, View):
-	def get(self, request, pk, file_type):
-		cv = get_object_or_404(CV, pk=pk, user=request.user)
-		if file_type == "file":
-			file_field = cv.file
-		else:
-			raise Http404("Unsupported file type.")
-
-		if not file_field:
-			messages.error(request, "No file available for preview.")
-			return redirect("jobs:cv-list")
-
-		if not file_field.storage.exists(file_field.name):
-			messages.error(request, "This file is missing from storage. Upload it again to preview it.")
-			return redirect("jobs:cv-list")
-
-		file_field.open("rb")
-		content_type, _ = guess_type(file_field.name)
-		try:
-			response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
-			response["Content-Disposition"] = f'inline; filename="{Path(file_field.name).name}"'
-			return response
-		except FileNotFoundError:
-			messages.error(request, "This file is missing from storage. Upload it again to preview it.")
-			return redirect("jobs:cv-list")
-
-
-class JobCoverLetterPreviewView(LoginRequiredMixin, UserQuerysetMixin, View):
-	def get(self, request, pk):
-		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
-		file_field = job.cover_letter_file
-		if not file_field:
-			messages.error(request, "No cover letter available for preview.")
-			return redirect("jobs:detail", pk=job.pk)
-
-		if not file_field.storage.exists(file_field.name):
-			messages.error(request, "This cover letter is missing from storage. Upload it again to preview it.")
-			return redirect("jobs:detail", pk=job.pk)
-
-		file_field.open("rb")
-		content_type, _ = guess_type(file_field.name)
-		try:
-			response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
-			response["Content-Disposition"] = f'inline; filename="{Path(file_field.name).name}"'
-			return response
-		except FileNotFoundError:
-			messages.error(request, "This cover letter is missing from storage. Upload it again to preview it.")
-			return redirect("jobs:detail", pk=job.pk)
 
 
 class KanbanView(LoginRequiredMixin, TemplateView):

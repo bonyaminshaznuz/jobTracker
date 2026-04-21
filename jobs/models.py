@@ -50,38 +50,6 @@ class Category(models.Model):
 		super().delete(*args, **kwargs)
 
 
-class CV(models.Model):
-	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="cvs")
-	name = models.CharField(max_length=150)
-	version = models.CharField(max_length=20, default="v1")
-	file = models.FileField(
-		upload_to="cvs/",
-		validators=[validate_upload_extension, validate_upload_size],
-	)
-	created_at = models.DateTimeField(auto_now_add=True)
-
-	class Meta:
-		ordering = ["-created_at"]
-		constraints = [
-			models.UniqueConstraint(fields=["user", "name", "version"], name="uniq_cv_name_version")
-		]
-
-	def __str__(self):
-		return f"{self.name} ({self.version})"
-
-	@property
-	def is_pdf(self):
-		return self.file.name.lower().endswith(".pdf")
-
-	@property
-	def display_filename(self):
-		return self.file.name.rsplit("/", 1)[-1]
-
-	@property
-	def is_pdf(self):
-		return bool(self.file and self.file.name.lower().endswith(".pdf"))
-
-
 class JobApplication(models.Model):
 	STATUS_APPLIED = "applied"
 	STATUS_SCREENING = "screening"
@@ -112,7 +80,12 @@ class JobApplication(models.Model):
 
 	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="jobs")
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="jobs")
-	cv = models.ForeignKey(CV, on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs")
+	cv_file = models.FileField(
+		upload_to="cvs/",
+		blank=True,
+		null=True,
+		validators=[validate_upload_extension, validate_upload_size],
+	)
 	cover_letter_file = models.FileField(
 		upload_to="cover_letters/",
 		blank=True,
@@ -136,6 +109,16 @@ class JobApplication(models.Model):
 
 	def __str__(self):
 		return f"{self.company_name} - {self.job_title}"
+
+	@property
+	def is_cv_pdf(self):
+		return bool(self.cv_file and self.cv_file.name.lower().endswith(".pdf"))
+
+	@property
+	def cv_filename(self):
+		if not self.cv_file:
+			return ""
+		return self.cv_file.name.rsplit("/", 1)[-1]
 
 
 class Note(models.Model):

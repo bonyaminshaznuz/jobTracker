@@ -1,7 +1,7 @@
 from django import forms
 from django.db.models import Q
 
-from jobs.models import CV, Category, JobApplication, Note
+from jobs.models import Category, JobApplication, Note
 
 
 BASE_INPUT_CLASS = (
@@ -53,9 +53,6 @@ class JobApplicationForm(forms.ModelForm):
         widget=forms.DateInput(attrs={"type": "date"}),
         help_text="Optional follow-up reminder date",
     )
-    new_cv_file = forms.FileField(required=False, label="Upload CV")
-    new_cover_letter_file = forms.FileField(required=False, label="Upload cover letter")
-
     class Meta:
         model = JobApplication
         fields = [
@@ -69,6 +66,8 @@ class JobApplicationForm(forms.ModelForm):
             "date_applied",
             "status",
             "category",
+            "cv_file",
+            "cover_letter_file",
         ]
         widgets = {
             "date_applied": forms.DateInput(attrs={"type": "date"}),
@@ -82,44 +81,6 @@ class JobApplicationForm(forms.ModelForm):
         self.fields["category"].empty_label = "Select category"
         self.fields["location"].choices = [("", "Select type")] + list(JobApplication.LOCATION_CHOICES)
         apply_input_classes(self)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        new_cv_file = cleaned_data.get("new_cv_file")
-        new_cover_letter_file = cleaned_data.get("new_cover_letter_file")
-        if not self.instance.pk and not new_cv_file:
-            self.add_error("new_cv_file", "Upload a CV file for this job application.")
-
-        cleaned_data["new_cover_letter_file"] = new_cover_letter_file
-        return cleaned_data
-
-
-class CVForm(forms.ModelForm):
-    class Meta:
-        model = CV
-        fields = ["name", "version", "file"]
-
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop("user", None)
-        super().__init__(*args, **kwargs)
-        apply_input_classes(self)
-
-    def clean(self):
-        cleaned_data = super().clean()
-        name = (cleaned_data.get("name") or "").strip()
-        version = (cleaned_data.get("version") or "").strip()
-        user = getattr(self, "user", None)
-
-        if user and name and version:
-            exists = CV.objects.filter(user=user, name__iexact=name, version__iexact=version)
-            if self.instance.pk:
-                exists = exists.exclude(pk=self.instance.pk)
-            if exists.exists():
-                raise forms.ValidationError("You already have a CV with this name and version.")
-
-        cleaned_data["name"] = name
-        cleaned_data["version"] = version
-        return cleaned_data
 
 
 class CoverLetterUploadForm(forms.Form):
