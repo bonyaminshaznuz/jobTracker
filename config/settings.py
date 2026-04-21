@@ -267,6 +267,10 @@ else:
     MEDIA_ROOT = MEDIA_ROOT.resolve()
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+    # Optional: legacy media root for one-time recovery when MEDIA_ROOT path changes.
+    # Example on Render: /opt/render/project/src/media
+    LEGACY_MEDIA_ROOT = os.getenv('DJANGO_LEGACY_MEDIA_ROOT', '').strip()
+
     # On platforms without custom Nginx (e.g. Render), enable Django media serving via URLconf.
     SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA_FILES', bool(render_external_hostname))
 

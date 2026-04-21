@@ -1,8 +1,12 @@
 import logging
+import os
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.files.base import File
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
@@ -17,6 +21,50 @@ from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatu
 from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity
 
 logger = logging.getLogger(__name__)
+
+
+def _try_recover_from_legacy_storage(file_field):
+	"""Recover a missing file from a legacy media root if available."""
+	if not file_field or not getattr(file_field, "name", ""):
+		return False
+
+	legacy_root = os.getenv("DJANGO_LEGACY_MEDIA_ROOT", "").strip()
+	if not legacy_root:
+		base_media = (settings.BASE_DIR / "media").resolve()
+		if base_media != settings.MEDIA_ROOT:
+			legacy_root = str(base_media)
+
+	if not legacy_root:
+		return False
+
+	legacy_storage = FileSystemStorage(location=legacy_root)
+	file_name = file_field.name
+
+	try:
+		if not legacy_storage.exists(file_name):
+			return False
+		with legacy_storage.open(file_name, "rb") as legacy_file:
+			# Save back to the active storage so future requests work normally.
+			file_field.storage.save(file_name, File(legacy_file))
+		return True
+	except Exception:
+		return False
+
+
+def _open_file_field_with_recovery(file_field):
+	"""Try opening a file field; recover from legacy storage if needed."""
+	try:
+		file_field.open("rb")
+		return True
+	except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+		recovered = _try_recover_from_legacy_storage(file_field)
+		if not recovered:
+			return False
+		try:
+			file_field.open("rb")
+			return True
+		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+			return False
 
 
 class UserQuerysetMixin:
@@ -295,9 +343,7 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			messages.error(request, f"No {label} attached to this job. Please upload it first.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		try:
-			file_field.open("rb")
-		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+		if not _open_file_field_with_recovery(file_field):
 			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
 			return redirect("jobs:update", pk=job.pk)
 
@@ -324,9 +370,7 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			messages.error(request, f"No {label} attached to this job. Please upload it first.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		try:
-			file_field.open("rb")
-		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+		if not _open_file_field_with_recovery(file_field):
 			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
 			return redirect("jobs:update", pk=job.pk)
 

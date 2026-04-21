@@ -23,6 +23,8 @@ services:
         value: /var/data/media
       - key: DJANGO_SERVE_MEDIA_FILES
         value: "True"
+      - key: DJANGO_LEGACY_MEDIA_ROOT
+        value: /opt/render/project/src/media
       - key: DATABASE_URL
         sync: false
       - key: DJANGO_SUPERUSER_USERNAME
