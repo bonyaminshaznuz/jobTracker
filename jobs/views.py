@@ -57,6 +57,13 @@ def _open_file_field_with_recovery(file_field):
 		file_field.open("rb")
 		return True
 	except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+		# Some backends may fail via FileField.open even when storage can open directly.
+		try:
+			file_field.file = file_field.storage.open(file_field.name, "rb")
+			return True
+		except Exception:
+			pass
+
 		recovered = _try_recover_from_legacy_storage(file_field)
 		if not recovered:
 			return False
@@ -64,6 +71,11 @@ def _open_file_field_with_recovery(file_field):
 			file_field.open("rb")
 			return True
 		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
+			try:
+				file_field.file = file_field.storage.open(file_field.name, "rb")
+				return True
+			except Exception:
+				pass
 			return False
 
 
@@ -344,12 +356,8 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			return redirect("jobs:detail", pk=job.pk)
 
 		if not _open_file_field_with_recovery(file_field):
-			# Fallback: if direct media URL resolves, use it instead of false-negative storage checks.
-			try:
-				return redirect(file_field.url)
-			except (ValueError, OSError, SuspiciousFileOperation):
-				messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
-				return redirect("jobs:update", pk=job.pk)
+			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
+			return redirect("jobs:update", pk=job.pk)
 
 		content_type, _ = guess_type(file_field.name)
 		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")

@@ -22,7 +22,7 @@ services:
       - key: DJANGO_MEDIA_ROOT
         value: /var/data/media
       - key: DJANGO_SERVE_MEDIA_FILES
-        value: "True"
+        value: "False"
       - key: DJANGO_LEGACY_MEDIA_ROOT
         value: /opt/render/project/src/media
       - key: DATABASE_URL
