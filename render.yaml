@@ -2,7 +2,11 @@ services:
   - type: web
     name: jobtracker
     env: python
-    plan: free
+    # IMPORTANT: Persistent disks require at minimum the "starter" plan.
+    # The free plan silently ignores the disk: block, so all uploaded files
+    # are lost on every restart/redeploy. Upgrade to starter (or higher) to
+    # keep media files across deployments.
+    plan: starter
     disk:
       name: media
       mountPath: /var/data
@@ -19,10 +23,15 @@ services:
         value: ".onrender.com"
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
+      # Files are stored on the persistent disk mounted at /var/data.
       - key: DJANGO_MEDIA_ROOT
         value: /var/data/media
+      # Media is served through the protected Django view (jobs:file-preview),
+      # NOT via direct URL, so this stays False.
       - key: DJANGO_SERVE_MEDIA_FILES
         value: "False"
+      # Legacy path used only for one-time migration of old files that were
+      # stored on the ephemeral filesystem before the disk was attached.
       - key: DJANGO_LEGACY_MEDIA_ROOT
         value: /opt/render/project/src/media
       - key: DATABASE_URL

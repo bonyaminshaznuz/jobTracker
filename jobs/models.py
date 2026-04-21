@@ -8,6 +8,14 @@ User = get_user_model()
 
 
 def normalize_storage_name(name):
+	"""Normalise a raw file-field name to a clean relative storage path.
+
+	Strips leading slashes, URL schemes, the literal ``media/`` prefix, and
+	``./`` prefixes so that the returned value can be used directly as a
+	``FileField.name`` (i.e. relative to ``MEDIA_ROOT``).
+
+	Returns an empty string for any name that looks unsafe (e.g. ``../``).
+	"""
 	if not name:
 		return ""
 
@@ -19,6 +27,8 @@ def normalize_storage_name(name):
 		value = urlparse(value).path
 
 	value = value.lstrip("/")
+
+	# Strip a leading "media/" segment that was accidentally stored.
 	if value.startswith("media/"):
 		value = value[len("media/"):]
 
@@ -32,6 +42,14 @@ def normalize_storage_name(name):
 
 
 def ensure_upload_prefix(storage_name, upload_dir):
+	"""Return a storage-relative name that is guaranteed to start with
+	``upload_dir/``.
+
+	This is used on ``save()`` to repair legacy rows whose ``FileField.name``
+	 was stored without the leading directory segment.  It intentionally does
+	NOT modify names that already begin with the correct prefix so that the
+	``cvs/cvs/…`` double-prefix bug cannot happen.
+	"""
 	normalized = normalize_storage_name(storage_name)
 	if not normalized:
 		return ""
@@ -40,12 +58,16 @@ def ensure_upload_prefix(storage_name, upload_dir):
 	if not prefix:
 		return normalized
 
+	# Already has the correct prefix – do nothing.
 	if normalized.startswith(f"{prefix}/"):
 		return normalized
 
+	# Name contains no directory at all – safe to prepend.
 	if "/" not in normalized:
 		return f"{prefix}/{normalized}"
 
+	# Name has *some* directory but it is different from the expected prefix.
+	# Leave it untouched rather than risk creating a nonsense path.
 	return normalized
 
 

@@ -296,7 +296,23 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		job.cv_file.open("rb")
+		try:
+			job.cv_file.open("rb")
+		except (FileNotFoundError, OSError):
+			logger.warning(
+				"CV file missing from storage (job_id=%s, name=%s). "
+				"This can happen after a Render restart if the persistent disk "
+				"was not mounted correctly.",
+				job.pk,
+				getattr(job.cv_file, 'name', ''),
+			)
+			messages.error(
+				request,
+				"The CV file could not be found on the server. "
+				"Please re-upload it.",
+			)
+			return redirect("jobs:detail", pk=job.pk)
+
 		filename = job.cv_filename or "cv.pdf"
 		response = FileResponse(job.cv_file.file, content_type="application/pdf")
 		response["Content-Disposition"] = f'inline; filename="{filename}"'
@@ -313,7 +329,23 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		job.cv_file.open("rb")
+		try:
+			job.cv_file.open("rb")
+		except (FileNotFoundError, OSError):
+			logger.warning(
+				"CV file missing from storage for download (job_id=%s, name=%s). "
+				"This can happen after a Render restart if the persistent disk "
+				"was not mounted correctly.",
+				job.pk,
+				getattr(job.cv_file, 'name', ''),
+			)
+			messages.error(
+				request,
+				"The CV file could not be found on the server. "
+				"Please re-upload it.",
+			)
+			return redirect("jobs:detail", pk=job.pk)
+
 		filename = job.cv_filename or "cv.pdf"
 		response = FileResponse(job.cv_file.file, content_type="application/pdf")
 		response["Content-Disposition"] = f'attachment; filename="{filename}"'
