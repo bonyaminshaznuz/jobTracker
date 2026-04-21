@@ -267,6 +267,20 @@ else:
     MEDIA_ROOT = MEDIA_ROOT.resolve()
     MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+            'OPTIONS': {
+                'location': str(MEDIA_ROOT),
+            },
+        },
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+            if not DEBUG
+            else 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+
     # Optional: legacy media root for one-time recovery when MEDIA_ROOT path changes.
     # Example on Render: /opt/render/project/src/media
     LEGACY_MEDIA_ROOT = os.getenv('DJANGO_LEGACY_MEDIA_ROOT', '').strip()

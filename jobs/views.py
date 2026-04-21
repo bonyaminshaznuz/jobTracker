@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files.base import File
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
-from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import FileSystemStorage, default_storage
 from django.conf import settings
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -18,14 +18,18 @@ from pathlib import Path
 
 from interviews.models import InterviewRound
 from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
-from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity
+from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity, normalize_storage_name
 
 logger = logging.getLogger(__name__)
 
 
-def _try_recover_from_legacy_storage(file_field):
+def _try_recover_from_legacy_storage(storage_name):
 	"""Recover a missing file from a legacy media root if available."""
-	if not file_field or not getattr(file_field, "name", ""):
+	if not storage_name:
+		return False
+
+	storage_name = normalize_storage_name(storage_name)
+	if not storage_name:
 		return False
 
 	legacy_root = os.getenv("DJANGO_LEGACY_MEDIA_ROOT", "").strip()
@@ -38,45 +42,58 @@ def _try_recover_from_legacy_storage(file_field):
 		return False
 
 	legacy_storage = FileSystemStorage(location=legacy_root)
-	file_name = file_field.name
 
 	try:
-		if not legacy_storage.exists(file_name):
+		if not legacy_storage.exists(storage_name):
 			return False
-		with legacy_storage.open(file_name, "rb") as legacy_file:
+		with legacy_storage.open(storage_name, "rb") as legacy_file:
 			# Save back to the active storage so future requests work normally.
-			file_field.storage.save(file_name, File(legacy_file))
+			default_storage.save(storage_name, File(legacy_file))
 		return True
 	except Exception:
 		return False
 
 
-def _open_file_field_with_recovery(file_field):
-	"""Try opening a file field; recover from legacy storage if needed."""
-	try:
-		file_field.open("rb")
-		return True
-	except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-		# Some backends may fail via FileField.open even when storage can open directly.
-		try:
-			file_field.file = file_field.storage.open(file_field.name, "rb")
-			return True
-		except Exception:
-			pass
+def _normalize_and_persist_job_file_name(job, field_name):
+	file_field = getattr(job, field_name)
+	if not file_field or not getattr(file_field, "name", ""):
+		return ""
 
-		recovered = _try_recover_from_legacy_storage(file_field)
+	normalized_name = normalize_storage_name(file_field.name)
+	if not normalized_name:
+		return ""
+
+	if normalized_name != file_field.name:
+		setattr(file_field, "name", normalized_name)
+		JobApplication.objects.filter(pk=job.pk, user=job.user).update(**{field_name: normalized_name})
+
+	return normalized_name
+
+
+def _open_storage_file_with_recovery(storage_name):
+	storage_name = normalize_storage_name(storage_name)
+	if not storage_name:
+		return None
+
+	try:
+		exists = default_storage.exists(storage_name)
+	except Exception:
+		exists = False
+
+	if not exists:
+		recovered = _try_recover_from_legacy_storage(storage_name)
 		if not recovered:
-			return False
+			return None
 		try:
-			file_field.open("rb")
-			return True
-		except (FileNotFoundError, OSError, SuspiciousFileOperation, ValueError):
-			try:
-				file_field.file = file_field.storage.open(file_field.name, "rb")
-				return True
-			except Exception:
-				pass
-			return False
+			if not default_storage.exists(storage_name):
+				return None
+		except Exception:
+			return None
+
+	try:
+		return default_storage.open(storage_name, "rb")
+	except Exception:
+		return None
 
 
 class UserQuerysetMixin:
@@ -88,7 +105,9 @@ def _delete_file_after_commit(file_field):
 	if not file_field or not getattr(file_field, "name", ""):
 		return
 	storage = file_field.storage
-	file_name = file_field.name
+	file_name = normalize_storage_name(file_field.name)
+	if not file_name:
+		return
 
 	def _delete_if_exists(storage_obj, name):
 		try:
@@ -342,9 +361,11 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 	def get(self, request, pk, file_type):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
+			field_name = "cv_file"
 			file_field = job.cv_file
 			label = "CV"
 		elif file_type == "cover":
+			field_name = "cover_letter_file"
 			file_field = job.cover_letter_file
 			label = "cover letter"
 		else:
@@ -355,13 +376,19 @@ class JobFilePreviewView(LoginRequiredMixin, View):
 			messages.error(request, f"No {label} attached to this job. Please upload it first.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		if not _open_file_field_with_recovery(file_field):
+		storage_name = _normalize_and_persist_job_file_name(job, field_name)
+		if not storage_name:
+			messages.error(request, f"This {label} file path is invalid. Please re-upload.")
+			return redirect("jobs:update", pk=job.pk)
+
+		opened_file = _open_storage_file_with_recovery(storage_name)
+		if not opened_file:
 			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
 			return redirect("jobs:update", pk=job.pk)
 
-		content_type, _ = guess_type(file_field.name)
-		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
-		response["Content-Disposition"] = f'inline; filename="{Path(file_field.name).name}"'
+		content_type, _ = guess_type(storage_name)
+		response = FileResponse(opened_file, content_type=content_type or "application/octet-stream")
+		response["Content-Disposition"] = f'inline; filename="{Path(storage_name).name}"'
 		return response
 
 
@@ -369,9 +396,11 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 	def get(self, request, pk, file_type):
 		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
 		if file_type == "cv":
+			field_name = "cv_file"
 			file_field = job.cv_file
 			label = "CV"
 		elif file_type == "cover":
+			field_name = "cover_letter_file"
 			file_field = job.cover_letter_file
 			label = "cover letter"
 		else:
@@ -382,13 +411,19 @@ class JobFileDownloadView(LoginRequiredMixin, View):
 			messages.error(request, f"No {label} attached to this job. Please upload it first.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		if not _open_file_field_with_recovery(file_field):
+		storage_name = _normalize_and_persist_job_file_name(job, field_name)
+		if not storage_name:
+			messages.error(request, f"This {label} file path is invalid. Please re-upload.")
+			return redirect("jobs:update", pk=job.pk)
+
+		opened_file = _open_storage_file_with_recovery(storage_name)
+		if not opened_file:
 			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
 			return redirect("jobs:update", pk=job.pk)
 
-		content_type, _ = guess_type(file_field.name)
-		response = FileResponse(file_field, content_type=content_type or "application/octet-stream")
-		response["Content-Disposition"] = f'attachment; filename="{Path(file_field.name).name}"'
+		content_type, _ = guess_type(storage_name)
+		response = FileResponse(opened_file, content_type=content_type or "application/octet-stream")
+		response["Content-Disposition"] = f'attachment; filename="{Path(storage_name).name}"'
 		return response
 
 

@@ -1,8 +1,34 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.db import models
+from django.urls import reverse
+from urllib.parse import urlparse
 
 User = get_user_model()
+
+
+def normalize_storage_name(name):
+	if not name:
+		return ""
+
+	value = str(name).strip().replace("\\", "/")
+	if not value:
+		return ""
+
+	if "://" in value:
+		value = urlparse(value).path
+
+	value = value.lstrip("/")
+	if value.startswith("media/"):
+		value = value[len("media/"):]
+
+	if value.startswith("./"):
+		value = value[2:]
+
+	if value.startswith("../"):
+		return ""
+
+	return value
 
 
 def validate_upload_size(file_obj):
@@ -117,6 +143,20 @@ class JobApplication(models.Model):
 	def __str__(self):
 		return f"{self.company_name} - {self.job_title}"
 
+	def _normalize_file_field_name(self, field_name):
+		file_field = getattr(self, field_name)
+		if not file_field or not getattr(file_field, "name", ""):
+			return
+
+		normalized_name = normalize_storage_name(file_field.name)
+		if normalized_name and normalized_name != file_field.name:
+			file_field.name = normalized_name
+
+	def save(self, *args, **kwargs):
+		self._normalize_file_field_name("cv_file")
+		self._normalize_file_field_name("cover_letter_file")
+		return super().save(*args, **kwargs)
+
 	@property
 	def is_cv_pdf(self):
 		return bool(self.cv_file and self.cv_file.name.lower().endswith(".pdf"))
@@ -129,21 +169,15 @@ class JobApplication(models.Model):
 
 	@property
 	def cv_file_url(self):
-		if not self.cv_file:
+		if not self.cv_file or not self.pk:
 			return ""
-		try:
-			return self.cv_file.url
-		except (ValueError, OSError, SuspiciousFileOperation):
-			return ""
+		return reverse("jobs:file-preview", kwargs={"pk": self.pk, "file_type": "cv"})
 
 	@property
 	def cover_letter_file_url(self):
-		if not self.cover_letter_file:
+		if not self.cover_letter_file or not self.pk:
 			return ""
-		try:
-			return self.cover_letter_file.url
-		except (ValueError, OSError, SuspiciousFileOperation):
-			return ""
+		return reverse("jobs:file-preview", kwargs={"pk": self.pk, "file_type": "cover"})
 
 
 class Note(models.Model):
