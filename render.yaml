@@ -21,6 +21,8 @@ services:
         value: "https://*.onrender.com"
       - key: DJANGO_MEDIA_ROOT
         value: /var/data/media
+      - key: DJANGO_SERVE_MEDIA_FILES
+        value: "True"
       - key: DATABASE_URL
         sync: false
       - key: DJANGO_SUPERUSER_USERNAME
