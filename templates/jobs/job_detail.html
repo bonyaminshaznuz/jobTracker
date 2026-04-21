@@ -12,6 +12,7 @@
                 {{ status_form.status }}
             </div>
             <button class="w-full rounded-lg bg-slate-900 px-2.5 py-2 text-sm text-white hover:bg-slate-800 sm:w-auto sm:px-3">Update</button>
+            <a class="font-medium text-slate-700 hover:text-slate-900" href="{% url 'jobs:update' job.pk %}">Edit</a>
         </form>
         </div>
     </div>
