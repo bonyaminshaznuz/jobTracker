@@ -1,99 +1,28 @@
 import logging
-import os
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.files.base import File
-from django.core.exceptions import SuspiciousFileOperation, ValidationError
-from django.core.files.storage import FileSystemStorage, default_storage
-from django.conf import settings
+from django.core.exceptions import PermissionDenied, SuspiciousFileOperation, ValidationError
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
-from mimetypes import guess_type
-from pathlib import Path
 
 from interviews.models import InterviewRound
 from jobs.forms import CategoryForm, JobApplicationForm, JobFilterForm, JobStatusForm, NoteForm
-from jobs.models import ActivityLog, Category, JobApplication, Note, Reminder, log_activity, normalize_storage_name
+from jobs.models import (
+	ActivityLog,
+	Category,
+	JobApplication,
+	Note,
+	Reminder,
+	log_activity,
+	normalize_storage_name,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _try_recover_from_legacy_storage(storage_name):
-	"""Recover a missing file from a legacy media root if available."""
-	if not storage_name:
-		return False
-
-	storage_name = normalize_storage_name(storage_name)
-	if not storage_name:
-		return False
-
-	legacy_root = os.getenv("DJANGO_LEGACY_MEDIA_ROOT", "").strip()
-	if not legacy_root:
-		base_media = (settings.BASE_DIR / "media").resolve()
-		if base_media != settings.MEDIA_ROOT:
-			legacy_root = str(base_media)
-
-	if not legacy_root:
-		return False
-
-	legacy_storage = FileSystemStorage(location=legacy_root)
-
-	try:
-		if not legacy_storage.exists(storage_name):
-			return False
-		with legacy_storage.open(storage_name, "rb") as legacy_file:
-			# Save back to the active storage so future requests work normally.
-			default_storage.save(storage_name, File(legacy_file))
-		return True
-	except Exception:
-		return False
-
-
-def _normalize_and_persist_job_file_name(job, field_name):
-	file_field = getattr(job, field_name)
-	if not file_field or not getattr(file_field, "name", ""):
-		return ""
-
-	normalized_name = normalize_storage_name(file_field.name)
-	if not normalized_name:
-		return ""
-
-	if normalized_name != file_field.name:
-		setattr(file_field, "name", normalized_name)
-		JobApplication.objects.filter(pk=job.pk, user=job.user).update(**{field_name: normalized_name})
-
-	return normalized_name
-
-
-def _open_storage_file_with_recovery(storage_name):
-	storage_name = normalize_storage_name(storage_name)
-	if not storage_name:
-		return None
-
-	try:
-		exists = default_storage.exists(storage_name)
-	except Exception:
-		exists = False
-
-	if not exists:
-		recovered = _try_recover_from_legacy_storage(storage_name)
-		if not recovered:
-			return None
-		try:
-			if not default_storage.exists(storage_name):
-				return None
-		except Exception:
-			return None
-
-	try:
-		return default_storage.open(storage_name, "rb")
-	except Exception:
-		return None
 
 
 class UserQuerysetMixin:
@@ -358,72 +287,36 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 
 
 class JobFilePreviewView(LoginRequiredMixin, View):
-	def get(self, request, pk, file_type):
-		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
-		if file_type == "cv":
-			field_name = "cv_file"
-			file_field = job.cv_file
-			label = "CV"
-		elif file_type == "cover":
-			field_name = "cover_letter_file"
-			file_field = job.cover_letter_file
-			label = "cover letter"
-		else:
-			messages.error(request, "Invalid file type requested.")
+	def get(self, request, job_id):
+		job = get_object_or_404(JobApplication, pk=job_id)
+		if job.user_id != request.user.id:
+			raise PermissionDenied
+
+		if not job.cv_file:
+			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		if not file_field:
-			messages.error(request, f"No {label} attached to this job. Please upload it first.")
-			return redirect("jobs:detail", pk=job.pk)
-
-		storage_name = _normalize_and_persist_job_file_name(job, field_name)
-		if not storage_name:
-			messages.error(request, f"This {label} file path is invalid. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
-
-		opened_file = _open_storage_file_with_recovery(storage_name)
-		if not opened_file:
-			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
-
-		content_type, _ = guess_type(storage_name)
-		response = FileResponse(opened_file, content_type=content_type or "application/octet-stream")
-		response["Content-Disposition"] = f'inline; filename="{Path(storage_name).name}"'
+		job.cv_file.open("rb")
+		filename = job.cv_filename or "cv.pdf"
+		response = FileResponse(job.cv_file.file, content_type="application/pdf")
+		response["Content-Disposition"] = f'inline; filename="{filename}"'
 		return response
 
 
 class JobFileDownloadView(LoginRequiredMixin, View):
-	def get(self, request, pk, file_type):
-		job = get_object_or_404(JobApplication, pk=pk, user=request.user)
-		if file_type == "cv":
-			field_name = "cv_file"
-			file_field = job.cv_file
-			label = "CV"
-		elif file_type == "cover":
-			field_name = "cover_letter_file"
-			file_field = job.cover_letter_file
-			label = "cover letter"
-		else:
-			messages.error(request, "Invalid file type requested.")
+	def get(self, request, job_id):
+		job = get_object_or_404(JobApplication, pk=job_id)
+		if job.user_id != request.user.id:
+			raise PermissionDenied
+
+		if not job.cv_file:
+			messages.error(request, "No CV attached to this job.")
 			return redirect("jobs:detail", pk=job.pk)
 
-		if not file_field:
-			messages.error(request, f"No {label} attached to this job. Please upload it first.")
-			return redirect("jobs:detail", pk=job.pk)
-
-		storage_name = _normalize_and_persist_job_file_name(job, field_name)
-		if not storage_name:
-			messages.error(request, f"This {label} file path is invalid. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
-
-		opened_file = _open_storage_file_with_recovery(storage_name)
-		if not opened_file:
-			messages.error(request, f"This {label} file is not available in storage. Please re-upload.")
-			return redirect("jobs:update", pk=job.pk)
-
-		content_type, _ = guess_type(storage_name)
-		response = FileResponse(opened_file, content_type=content_type or "application/octet-stream")
-		response["Content-Disposition"] = f'attachment; filename="{Path(storage_name).name}"'
+		job.cv_file.open("rb")
+		filename = job.cv_filename or "cv.pdf"
+		response = FileResponse(job.cv_file.file, content_type="application/pdf")
+		response["Content-Disposition"] = f'attachment; filename="{filename}"'
 		return response
 
 

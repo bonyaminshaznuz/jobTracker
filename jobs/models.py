@@ -31,6 +31,24 @@ def normalize_storage_name(name):
 	return value
 
 
+def ensure_upload_prefix(storage_name, upload_dir):
+	normalized = normalize_storage_name(storage_name)
+	if not normalized:
+		return ""
+
+	prefix = (upload_dir or "").strip("/")
+	if not prefix:
+		return normalized
+
+	if normalized.startswith(f"{prefix}/"):
+		return normalized
+
+	if "/" not in normalized:
+		return f"{prefix}/{normalized}"
+
+	return normalized
+
+
 def validate_upload_size(file_obj):
 	try:
 		size = file_obj.size
@@ -148,7 +166,8 @@ class JobApplication(models.Model):
 		if not file_field or not getattr(file_field, "name", ""):
 			return
 
-		normalized_name = normalize_storage_name(file_field.name)
+		upload_dir = "cvs" if field_name == "cv_file" else "cover_letters"
+		normalized_name = ensure_upload_prefix(file_field.name, upload_dir)
 		if normalized_name and normalized_name != file_field.name:
 			file_field.name = normalized_name
 
@@ -171,13 +190,11 @@ class JobApplication(models.Model):
 	def cv_file_url(self):
 		if not self.cv_file or not self.pk:
 			return ""
-		return reverse("jobs:file-preview", kwargs={"pk": self.pk, "file_type": "cv"})
+		return reverse("jobs:file-preview", kwargs={"job_id": self.pk})
 
 	@property
 	def cover_letter_file_url(self):
-		if not self.cover_letter_file or not self.pk:
-			return ""
-		return reverse("jobs:file-preview", kwargs={"pk": self.pk, "file_type": "cover"})
+		return ""
 
 
 class Note(models.Model):
