@@ -227,6 +227,9 @@ MEDIA_ROOT = Path(media_root_env).expanduser() if media_root_env else (BASE_DIR 
 MEDIA_ROOT = MEDIA_ROOT.resolve()
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
+# On platforms without custom Nginx (e.g. Render), enable Django media serving via URLconf.
+SERVE_MEDIA_FILES = env_bool('DJANGO_SERVE_MEDIA_FILES', bool(render_external_hostname))
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', True)
