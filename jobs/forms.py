@@ -84,20 +84,6 @@ class JobApplicationForm(forms.ModelForm):
         self.fields["location"].choices = [("", "Select type")] + list(JobApplication.LOCATION_CHOICES)
         apply_input_classes(self)
 
-    def clean_cv_file(self):
-        uploaded = self.cleaned_data.get("cv_file")
-        # Keep current file when no replacement upload is provided.
-        if not uploaded and self.instance and self.instance.pk:
-            return self.instance.cv_file
-        return uploaded
-
-    def clean_cover_letter_file(self):
-        uploaded = self.cleaned_data.get("cover_letter_file")
-        # Keep current file when no replacement upload is provided.
-        if not uploaded and self.instance and self.instance.pk:
-            return self.instance.cover_letter_file
-        return uploaded
-
 
 class CoverLetterUploadForm(forms.Form):
     cover_letter_file = forms.FileField(required=False, label="Upload a cover letter")

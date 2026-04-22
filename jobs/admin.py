@@ -15,17 +15,6 @@ class JobApplicationAdminForm(forms.ModelForm):
 			"cover_letter_file": forms.FileInput(),
 		}
 
-	def clean_cv_file(self):
-		uploaded = self.cleaned_data.get("cv_file")
-		if not uploaded and self.instance and self.instance.pk:
-			return self.instance.cv_file
-		return uploaded
-
-	def clean_cover_letter_file(self):
-		uploaded = self.cleaned_data.get("cover_letter_file")
-		if not uploaded and self.instance and self.instance.pk:
-			return self.instance.cover_letter_file
-		return uploaded
 
 
 @admin.register(JobApplication)

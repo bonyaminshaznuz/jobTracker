@@ -128,17 +128,22 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		try:
 			with transaction.atomic():
 				self.object = form.save(commit=False)
-				# Form's clean methods already preserve old files if no upload.
-				# Do NOT overwrite with strings - that breaks FileField references.
+				
+				# Preserve files if user didn't submit a new file for that field.
+				# Check request.FILES to determine if field was actually touched in the form.
+				if 'cv_file' not in self.request.FILES and previous_cv:
+					self.object.cv_file = previous_cv
+				if 'cover_letter_file' not in self.request.FILES and previous_cover_letter:
+					self.object.cover_letter_file = previous_cover_letter
+				
 				self.object.save()
 				form.save_m2m()
 				
-				# Check if cv_file changed (old name differs from new name)
+				# Only delete old files if they were actually replaced (names differ).
 				current_cv_name = self.object.cv_file.name if self.object.cv_file else ""
 				if previous_cv_name and previous_cv_name != current_cv_name:
 					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
 				
-				# Check if cover_letter_file changed (old name differs from new name)
 				current_cover_name = self.object.cover_letter_file.name if self.object.cover_letter_file else ""
 				if previous_cover_letter_name and previous_cover_letter_name != current_cover_name:
 					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
@@ -155,7 +160,7 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 				log_activity(self.request.user, self.object, "Job application updated")
 				messages.success(self.request, "Job application updated.")
 			return redirect(self.get_success_url())
-			return redirect(self.get_success_url())
+
 		except Exception:
 			logger.exception("Failed to update job application", extra={"job_id": self.object.pk, "user_id": self.request.user.pk})
 			form.add_error(None, "Could not update the job right now. Please try again.")
