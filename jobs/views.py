@@ -128,19 +128,21 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		try:
 			with transaction.atomic():
 				self.object = form.save(commit=False)
-
-				# Keep existing attachment names unless a replacement file was posted.
-				if "cv_file" not in self.request.FILES:
-					self.object.cv_file = previous_cv_name or None
-				if "cover_letter_file" not in self.request.FILES:
-					self.object.cover_letter_file = previous_cover_letter_name or None
-
+				# Form's clean methods already preserve old files if no upload.
+				# Do NOT overwrite with strings - that breaks FileField references.
 				self.object.save()
 				form.save_m2m()
-				if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
+				
+				# Check if cv_file changed (old name differs from new name)
+				current_cv_name = self.object.cv_file.name if self.object.cv_file else ""
+				if previous_cv_name and previous_cv_name != current_cv_name:
 					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
-				if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
+				
+				# Check if cover_letter_file changed (old name differs from new name)
+				current_cover_name = self.object.cover_letter_file.name if self.object.cover_letter_file else ""
+				if previous_cover_letter_name and previous_cover_letter_name != current_cover_name:
 					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
+				
 				reminder_date = form.cleaned_data.get("reminder_date")
 				if reminder_date:
 					Reminder.objects.update_or_create(
@@ -152,6 +154,7 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 					Reminder.objects.filter(user=self.request.user, job=self.object).delete()
 				log_activity(self.request.user, self.object, "Job application updated")
 				messages.success(self.request, "Job application updated.")
+			return redirect(self.get_success_url())
 			return redirect(self.get_success_url())
 		except Exception:
 			logger.exception("Failed to update job application", extra={"job_id": self.object.pk, "user_id": self.request.user.pk})
