@@ -127,7 +127,16 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 
 		try:
 			with transaction.atomic():
-				response = super().form_valid(form)
+				self.object = form.save(commit=False)
+
+				# Keep existing attachment names unless a replacement file was posted.
+				if "cv_file" not in self.request.FILES:
+					self.object.cv_file = previous_cv_name or None
+				if "cover_letter_file" not in self.request.FILES:
+					self.object.cover_letter_file = previous_cover_letter_name or None
+
+				self.object.save()
+				form.save_m2m()
 				if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
 					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
 				if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
@@ -143,7 +152,7 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 					Reminder.objects.filter(user=self.request.user, job=self.object).delete()
 				log_activity(self.request.user, self.object, "Job application updated")
 				messages.success(self.request, "Job application updated.")
-			return response
+			return redirect(self.get_success_url())
 		except Exception:
 			logger.exception("Failed to update job application", extra={"job_id": self.object.pk, "user_id": self.request.user.pk})
 			form.add_error(None, "Could not update the job right now. Please try again.")
