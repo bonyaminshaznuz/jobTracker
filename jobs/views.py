@@ -129,11 +129,11 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 			with transaction.atomic():
 				self.object = form.save(commit=False)
 				
-				# Preserve files if user didn't submit a new file for that field.
-				# Check request.FILES to determine if field was actually touched in the form.
-				if 'cv_file' not in self.request.FILES and previous_cv:
+				# Preserve files if user didn't submit a new file (check for actual file, not just key existence).
+				# FileInput may submit the field as empty if no file is selected.
+				if not self.request.FILES.get('cv_file') and previous_cv:
 					self.object.cv_file = previous_cv
-				if 'cover_letter_file' not in self.request.FILES and previous_cover_letter:
+				if not self.request.FILES.get('cover_letter_file') and previous_cover_letter:
 					self.object.cover_letter_file = previous_cover_letter
 				
 				self.object.save()
