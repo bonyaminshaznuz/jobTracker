@@ -254,57 +254,57 @@ class JobStatusUpdateView(LoginRequiredMixin, View):
 		return redirect("jobs:detail", pk=job.pk)
 
 
-class JobInlineCVUploadView(LoginRequiredMixin, View):
+class JobCVUploadView(LoginRequiredMixin, View):
+	"""Upload CV only - completely independent from cover letter."""
 	def post(self, request, job_pk):
 		job = get_object_or_404(JobApplication, pk=job_pk, user=request.user)
-		uploaded_cv_file = request.FILES.get("cv_file") or request.FILES.get("file")
-		uploaded_cover_file = request.FILES.get("cover_letter_file")
+		uploaded_file = request.FILES.get("cv_file") or request.FILES.get("file")
 
-		if uploaded_cv_file and not uploaded_cover_file:
-			previous_cv = job.cv_file
-			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
-			previous_cv_storage = previous_cv.storage if previous_cv_name else None
-			with transaction.atomic():
-				job.cv_file = uploaded_cv_file
-				job.save(update_fields=["cv_file", "updated_at"])
-				if previous_cv_name and previous_cv_name != job.cv_file.name:
-					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
-			log_activity(request.user, job, "CV uploaded")
-			messages.success(request, "CV uploaded and attached to the job.")
+		if not uploaded_file:
+			messages.error(request, "No CV file selected.")
 			return redirect("jobs:update", pk=job.pk)
 
-		if uploaded_cover_file and not uploaded_cv_file:
-			previous_cover_letter = job.cover_letter_file
-			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
-			previous_cover_letter_storage = previous_cover_letter.storage if previous_cover_letter_name else None
-			with transaction.atomic():
-				job.cover_letter_file = uploaded_cover_file
-				job.save(update_fields=["cover_letter_file", "updated_at"])
-				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
-					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
-			log_activity(request.user, job, "Cover letter uploaded")
-			messages.success(request, "Cover letter uploaded and attached to the job.")
+		# Save old CV info before change
+		previous_cv = job.cv_file
+		previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+		previous_cv_storage = previous_cv.storage if previous_cv_name else None
+
+		with transaction.atomic():
+			job.cv_file = uploaded_file
+			job.save(update_fields=["cv_file", "updated_at"])
+			# Only delete old file if name changed
+			if previous_cv_name and previous_cv_name != job.cv_file.name:
+				_delete_file_after_commit(previous_cv_storage, previous_cv_name)
+
+		log_activity(request.user, job, "CV uploaded")
+		messages.success(request, "CV uploaded successfully.")
+		return redirect("jobs:update", pk=job.pk)
+
+
+class JobCoverLetterUploadView(LoginRequiredMixin, View):
+	"""Upload Cover Letter only - completely independent from CV."""
+	def post(self, request, job_pk):
+		job = get_object_or_404(JobApplication, pk=job_pk, user=request.user)
+		uploaded_file = request.FILES.get("cover_letter_file")
+
+		if not uploaded_file:
+			messages.error(request, "No cover letter file selected.")
 			return redirect("jobs:update", pk=job.pk)
 
-		if uploaded_cv_file and uploaded_cover_file:
-			previous_cv = job.cv_file
-			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
-			previous_cv_storage = previous_cv.storage if previous_cv_name else None
-			previous_cover_letter = job.cover_letter_file
-			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
-			previous_cover_letter_storage = previous_cover_letter.storage if previous_cover_letter_name else None
-			with transaction.atomic():
-				job.cv_file = uploaded_cv_file
-				job.cover_letter_file = uploaded_cover_file
-				job.save(update_fields=["cv_file", "cover_letter_file", "updated_at"])
-				if previous_cv_name and previous_cv_name != job.cv_file.name:
-					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
-				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
-					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
-			log_activity(request.user, job, "CV and cover letter uploaded")
-			messages.success(request, "CV and cover letter uploaded and attached to the job.")
-		else:
-			messages.error(request, "No file selected.")
+		# Save old cover letter info before change
+		previous_cover = job.cover_letter_file
+		previous_cover_name = previous_cover.name if previous_cover and previous_cover.name else ""
+		previous_cover_storage = previous_cover.storage if previous_cover_name else None
+
+		with transaction.atomic():
+			job.cover_letter_file = uploaded_file
+			job.save(update_fields=["cover_letter_file", "updated_at"])
+			# Only delete old file if name changed
+			if previous_cover_name and previous_cover_name != job.cover_letter_file.name:
+				_delete_file_after_commit(previous_cover_storage, previous_cover_name)
+
+		log_activity(request.user, job, "Cover letter uploaded")
+		messages.success(request, "Cover letter uploaded successfully.")
 		return redirect("jobs:update", pk=job.pk)
 
 
