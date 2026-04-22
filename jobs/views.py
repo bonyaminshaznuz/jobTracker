@@ -30,11 +30,10 @@ class UserQuerysetMixin:
 		return super().get_queryset().filter(user=self.request.user)
 
 
-def _delete_file_after_commit(file_field):
-	if not file_field or not getattr(file_field, "name", ""):
+def _delete_file_after_commit(storage, file_name):
+	if not storage:
 		return
-	storage = file_field.storage
-	file_name = normalize_storage_name(file_field.name)
+	file_name = normalize_storage_name(file_name)
 	if not file_name:
 		return
 
@@ -121,16 +120,18 @@ class JobUpdateView(LoginRequiredMixin, UserQuerysetMixin, UpdateView):
 		previous_job = self.get_object()
 		previous_cv = previous_job.cv_file
 		previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+		previous_cv_storage = previous_cv.storage if previous_cv_name else None
 		previous_cover_letter = previous_job.cover_letter_file
 		previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+		previous_cover_letter_storage = previous_cover_letter.storage if previous_cover_letter_name else None
 
 		try:
 			with transaction.atomic():
 				response = super().form_valid(form)
 				if previous_cv_name and previous_cv_name != (self.object.cv_file.name if self.object.cv_file else ""):
-					_delete_file_after_commit(previous_cv)
+					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
 				if previous_cover_letter_name and previous_cover_letter_name != (self.object.cover_letter_file.name if self.object.cover_letter_file else ""):
-					_delete_file_after_commit(previous_cover_letter)
+					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
 				reminder_date = form.cleaned_data.get("reminder_date")
 				if reminder_date:
 					Reminder.objects.update_or_create(
@@ -245,11 +246,12 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		if uploaded_cv_file and not uploaded_cover_file:
 			previous_cv = job.cv_file
 			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+			previous_cv_storage = previous_cv.storage if previous_cv_name else None
 			with transaction.atomic():
 				job.cv_file = uploaded_cv_file
 				job.save(update_fields=["cv_file", "updated_at"])
 				if previous_cv_name and previous_cv_name != job.cv_file.name:
-					_delete_file_after_commit(previous_cv)
+					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
 			log_activity(request.user, job, "CV uploaded")
 			messages.success(request, "CV uploaded and attached to the job.")
 			return redirect("jobs:update", pk=job.pk)
@@ -257,11 +259,12 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		if uploaded_cover_file and not uploaded_cv_file:
 			previous_cover_letter = job.cover_letter_file
 			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+			previous_cover_letter_storage = previous_cover_letter.storage if previous_cover_letter_name else None
 			with transaction.atomic():
 				job.cover_letter_file = uploaded_cover_file
 				job.save(update_fields=["cover_letter_file", "updated_at"])
 				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
-					_delete_file_after_commit(previous_cover_letter)
+					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
 			log_activity(request.user, job, "Cover letter uploaded")
 			messages.success(request, "Cover letter uploaded and attached to the job.")
 			return redirect("jobs:update", pk=job.pk)
@@ -269,16 +272,18 @@ class JobInlineCVUploadView(LoginRequiredMixin, View):
 		if uploaded_cv_file and uploaded_cover_file:
 			previous_cv = job.cv_file
 			previous_cv_name = previous_cv.name if previous_cv and previous_cv.name else ""
+			previous_cv_storage = previous_cv.storage if previous_cv_name else None
 			previous_cover_letter = job.cover_letter_file
 			previous_cover_letter_name = previous_cover_letter.name if previous_cover_letter and previous_cover_letter.name else ""
+			previous_cover_letter_storage = previous_cover_letter.storage if previous_cover_letter_name else None
 			with transaction.atomic():
 				job.cv_file = uploaded_cv_file
 				job.cover_letter_file = uploaded_cover_file
 				job.save(update_fields=["cv_file", "cover_letter_file", "updated_at"])
 				if previous_cv_name and previous_cv_name != job.cv_file.name:
-					_delete_file_after_commit(previous_cv)
+					_delete_file_after_commit(previous_cv_storage, previous_cv_name)
 				if previous_cover_letter_name and previous_cover_letter_name != job.cover_letter_file.name:
-					_delete_file_after_commit(previous_cover_letter)
+					_delete_file_after_commit(previous_cover_letter_storage, previous_cover_letter_name)
 			log_activity(request.user, job, "CV and cover letter uploaded")
 			messages.success(request, "CV and cover letter uploaded and attached to the job.")
 		else:
