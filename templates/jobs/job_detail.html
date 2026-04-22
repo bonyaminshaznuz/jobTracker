@@ -59,7 +59,6 @@
                     <p class="text-xs uppercase tracking-wide text-slate-500">Attached CV</p>
                     {% if job.cv_file %}
                         <h3 class="mt-1 break-words text-lg font-semibold text-slate-900">{{ job.cv_filename }}</h3>
-                        <p class="text-sm text-slate-500">{{ job.cv_file.name }}</p>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
                             <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{% url 'jobs:file-preview' job.pk %}" target="_blank" rel="noreferrer">Preview CV</a>
                             <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{% url 'jobs:file-download' job.pk %}">Download CV</a>
@@ -73,10 +72,9 @@
                     <p class="text-xs uppercase tracking-wide text-slate-500">Attached Cover Letter</p>
                     {% if job.cover_letter_file %}
                         <h3 class="mt-1 break-words text-lg font-semibold text-slate-900">{{ job.cover_letter_filename }}</h3>
-                        <p class="text-sm text-slate-500">{{ job.cover_letter_file.name }}</p>
                         <div class="mt-3 flex flex-wrap items-center gap-2">
-                            <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{% url 'jobs:cover-letter-preview' job.pk %}" target="_blank" rel="noreferrer">Preview Cover Letter</a>
-                            <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{% url 'jobs:cover-letter-download' job.pk %}">Download Cover Letter</a>
+                            <a class="w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-slate-800 sm:w-auto" href="{% url 'jobs:cover-letter-preview' job.pk %}" target="_blank" rel="noreferrer">Preview Cover</a>
+                            <a class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50 sm:w-auto" href="{% url 'jobs:cover-letter-download' job.pk %}">Download Cover</a>
                         </div>
                     {% else %}
                         <p class="mt-3 text-sm text-slate-500">No cover letter uploaded.</p>

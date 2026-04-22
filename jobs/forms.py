@@ -71,6 +71,8 @@ class JobApplicationForm(forms.ModelForm):
         ]
         widgets = {
             "date_applied": forms.DateInput(attrs={"type": "date"}),
+            "cv_file": forms.FileInput(),
+            "cover_letter_file": forms.FileInput(),
         }
 
     def __init__(self, *args, user=None, **kwargs):
